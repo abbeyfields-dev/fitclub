@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 
 export default function AnalyticsScreen() {
   const theme = useTheme();

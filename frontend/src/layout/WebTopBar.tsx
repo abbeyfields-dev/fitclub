@@ -8,7 +8,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { useAuthStore } from '../store/authStore';
 import { useClub } from '../context/ClubContext';
 import { roundService } from '../services/roundService';
@@ -99,7 +99,7 @@ export function WebTopBar() {
         onRequestClose={() => setAvatarOpen(false)}
       >
         <Pressable
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { backgroundColor: colors.overlayLight }]}
           onPress={() => setAvatarOpen(false)}
         >
           <View
@@ -181,7 +181,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: 56,
     paddingRight: 24,
-    backgroundColor: 'rgba(0,0,0,0.2)',
   },
   dropdown: {
     minWidth: 220,

@@ -8,7 +8,6 @@ import { HomeStack } from './HomeStack';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
 import TeamScreen from '../screens/TeamScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import RoundsScreen from '../screens/RoundsScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -24,31 +23,10 @@ export function MainTabs() {
         }}
         initialRouteName="HomeTab"
       >
-        <Tab.Screen
-          name="ProfileTab"
-          component={ProfileScreen}
-          options={{ tabBarLabel: 'Profile', tabBarButton: () => null }}
-        />
-        <Tab.Screen
-          name="HomeTab"
-          component={HomeStack}
-          options={{ tabBarLabel: 'Home' }}
-        />
-        <Tab.Screen
-          name="LeaderboardTab"
-          component={LeaderboardScreen}
-          options={{ tabBarLabel: 'Leaderboard' }}
-        />
-        <Tab.Screen
-          name="TeamTab"
-          component={TeamScreen}
-          options={{ tabBarLabel: 'Team' }}
-        />
-        <Tab.Screen
-          name="ChallengesTab"
-          component={RoundsScreen}
-          options={{ tabBarLabel: 'Challenges' }}
-        />
+        <Tab.Screen name="HomeTab" component={HomeStack} options={{ tabBarLabel: 'Home' }} />
+        <Tab.Screen name="LeaderboardTab" component={LeaderboardScreen} options={{ tabBarLabel: 'Leaderboard' }} />
+        <Tab.Screen name="TeamTab" component={TeamScreen} options={{ tabBarLabel: 'Team' }} />
+        <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ tabBarLabel: 'Profile' }} />
       </Tab.Navigator>
     </View>
   );

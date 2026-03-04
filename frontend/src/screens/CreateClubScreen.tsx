@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Share, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubService } from '../services/clubService';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { Button, Input, Card } from '../components';
 
 export default function CreateClubScreen() {
@@ -29,8 +30,8 @@ export default function CreateClubScreen() {
       } else {
         Alert.alert('Success', 'Club created!', [{ text: 'OK', onPress: () => (navigation as any).navigate('Home') }]);
       }
-    } catch (e: any) {
-      Alert.alert('Could not create club', e?.message || 'Please try again.');
+    } catch (e: unknown) {
+      Alert.alert('Could not create club', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -52,16 +53,16 @@ export default function CreateClubScreen() {
 
   if (createdClub) {
     return (
-      <ScrollView
-        contentContainerStyle={[
-          styles.successContainer,
-          {
-            padding: spacing.md,
-            paddingTop: spacing.md,
-            backgroundColor: colors.background,
-          },
-        ]}
-      >
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.successContainer,
+            {
+              padding: spacing.md,
+              backgroundColor: colors.background,
+            },
+          ]}
+        >
         <Card style={[styles.successCard, { padding: spacing.lg, width: '100%', maxWidth: 400, alignItems: 'center' }]}>
           <View style={{ marginBottom: spacing.sm }}>
             <Ionicons name="checkmark-circle" size={56} color={colors.success} />
@@ -95,25 +96,26 @@ export default function CreateClubScreen() {
             style={{ marginBottom: spacing.sm }}
           />
           <TouchableOpacity onPress={handleDone} style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md }} activeOpacity={0.7}>
-            <Text style={[styles.doneButtonText, { ...typography.body, fontWeight: '600', color: colors.textSecondary }]}>Done</Text>
+            <Text style={[styles.doneButtonText, { ...typography.label, color: colors.textSecondary }]}>Done</Text>
           </TouchableOpacity>
         </Card>
-      </ScrollView>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={[
-        styles.container,
-        {
-          flexGrow: 1,
-          padding: spacing.md,
-          paddingTop: spacing.md,
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          {
+            flexGrow: 1,
+            padding: spacing.md,
+            backgroundColor: colors.background,
+          },
+        ]}
+      >
       <Text style={[styles.title, { ...typography.h1, color: colors.text, marginBottom: spacing.xs }]}>Create a club</Text>
       <Text style={[styles.hint, { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md }]}>
         Name your club (e.g. "Acme Fitness" or "Campus Runners"). You'll get an invite code to share.
@@ -136,13 +138,15 @@ export default function CreateClubScreen() {
         style={{ marginBottom: spacing.sm }}
       />
       <TouchableOpacity onPress={() => navigation.goBack()} disabled={loading} style={styles.linkWrap}>
-        <Text style={[styles.link, { ...typography.body, fontWeight: '600', color: colors.primary }]}>Back</Text>
+        <Text style={[styles.link, { ...typography.label, color: colors.primary }]}>Back</Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
   container: {},
   title: {},
   hint: {},

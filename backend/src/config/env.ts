@@ -35,4 +35,6 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
   corsOrigin: process.env.CORS_ORIGIN || '*',
   gcpProjectId: process.env.GCP_PROJECT_ID || 'fitclub-488901',
+  /** Optional. When set, challenge-go-live notifications are sent to club members via Expo Push. */
+  expoAccessToken: process.env.EXPO_ACCESS_TOKEN?.trim() || '',
 } as const;

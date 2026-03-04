@@ -13,13 +13,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { Card } from '../components';
 import { useClub } from '../context/ClubContext';
 import { clubService } from '../services/clubService';
 import { roundService, type Round } from '../services/roundService';
 import { teamService } from '../services/teamService';
-import { shadows } from '../theme/tokens';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -152,17 +151,17 @@ export default function DashboardScreen() {
 
       {/* Stats cards */}
       <View style={[styles.cardsRow, { gap: spacing.sm, marginBottom: spacing.lg }]}>
-        <Card style={[styles.statCard, { padding: spacing.md, flex: 1, ...shadows.sm }]}>
+        <Card style={[styles.statCard, { padding: spacing.md, flex: 1, ...theme.shadows.sm }]}>
           <Ionicons name="trophy-outline" size={28} color={colors.primary} style={{ marginBottom: spacing.xs }} />
           <Text style={[typography.h3, { color: colors.text }]}>{activeRound ? activeRound.name : '—'}</Text>
           <Text style={[typography.caption, { color: colors.textSecondary, marginTop: spacing.xxs }]}>Active round</Text>
         </Card>
-        <Card style={[styles.statCard, { padding: spacing.md, flex: 1, ...shadows.sm }]}>
+        <Card style={[styles.statCard, { padding: spacing.md, flex: 1, ...theme.shadows.sm }]}>
           <Ionicons name="people-outline" size={28} color={colors.accent} style={{ marginBottom: spacing.xs }} />
           <Text style={[typography.h3, { color: colors.text }]}>{membersCount}</Text>
           <Text style={[typography.caption, { color: colors.textSecondary, marginTop: spacing.xxs }]}>Members</Text>
         </Card>
-        <Card style={[styles.statCard, { padding: spacing.md, flex: 1, ...shadows.sm }]}>
+        <Card style={[styles.statCard, { padding: spacing.md, flex: 1, ...theme.shadows.sm }]}>
           <Ionicons name="people-circle-outline" size={28} color={colors.gold} style={{ marginBottom: spacing.xs }} />
           <Text style={[typography.h3, { color: colors.text }]}>{teamsCount}</Text>
           <Text style={[typography.caption, { color: colors.textSecondary, marginTop: spacing.xxs }]}>Teams</Text>

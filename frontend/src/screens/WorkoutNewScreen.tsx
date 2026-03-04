@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,317 +7,428 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  TextInput,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card, Button, Input } from '../components';
-import { workoutService, type WorkoutActivity } from '../services/workoutService';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../theme';
+import { useClub } from '../context/ClubContext';
+import { useDashboardStore } from '../store/dashboardStore';
+import { clubService } from '../services/clubService';
+import { workoutService, type WorkoutActivity, type LogWorkoutPayload } from '../services/workoutService';
 import { getInputConfig, getPointsPreview } from '../config/workoutInputMap';
+import type { RecentWorkout } from '../types/dashboard';
+
+const STEP_DURATION = 5;
+const STEP_DISTANCE = 0.5;
 
 export default function WorkoutNewScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { colors, spacing, radius } = theme;
+  const { colors, spacing: s, radius: r, typography, shadows } = theme;
+  const { selectedClub } = useClub();
+  const { lastLoggedWorkout, setLastLoggedWorkout, optimisticallyAddWorkout } = useDashboardStore();
 
   const [activities, setActivities] = useState<WorkoutActivity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
   const [activitiesError, setActivitiesError] = useState<string | null>(null);
-  const [selectedWorkoutType, setSelectedWorkoutType] = useState<string | null>(null);
-  const [value, setValue] = useState('');
-  const [date, setDate] = useState(() => new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [duration, setDuration] = useState('');
+  const [distance, setDistance] = useState('');
+  const [optionalExpanded, setOptionalExpanded] = useState(false);
+  const [note, setNote] = useState('');
   const [hasProof, setHasProof] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [dailyCap, setDailyCap] = useState<number | null>(null);
+  const [todayPoints, setTodayPoints] = useState<number>(0);
+  const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
+  const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);
+  const [successPoints, setSuccessPoints] = useState<number | null>(null);
+  const [streakMessage, setStreakMessage] = useState<string | null>(null);
+  const successOpacity = React.useRef(new Animated.Value(0)).current;
+  const successScale = React.useRef(new Animated.Value(0.85)).current;
+
+  const loadActivities = useCallback(async () => {
+    setActivitiesLoading(true);
+    setActivitiesError(null);
+    try {
+      const res = await workoutService.listActivities();
+      if (res.success && res.data) setActivities(res.data);
+    } catch (err) {
+      setActivitiesError(err instanceof Error ? err.message : 'Failed to load activities');
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, []);
+
+  const loadDashboard = useCallback(async () => {
+    if (!selectedClub) return;
+    try {
+      const dash = await clubService.getDashboard(selectedClub.id);
+      const round = dash.data?.activeRound;
+      setActiveRoundId(round?.id ?? null);
+      setDailyCap(dash.data?.dailyCap ?? null);
+      setTodayPoints(dash.data?.todayPoints ?? 0);
+      setRecentWorkouts(dash.data?.recentWorkouts ?? []);
+    } catch {
+      setActiveRoundId(null);
+      setDailyCap(null);
+      setTodayPoints(0);
+      setRecentWorkouts([]);
+    }
+  }, [selectedClub?.id]);
 
   useEffect(() => {
-    let cancelled = false;
-    workoutService
-      .listActivities()
-      .then((res) => {
-        if (!cancelled && res.success && res.data) setActivities(res.data);
-      })
-      .catch((err) => {
-        if (!cancelled) setActivitiesError(err?.message || 'Failed to load activities');
-      })
-      .finally(() => {
-        if (!cancelled) setActivitiesLoading(false);
+    loadActivities();
+  }, [loadActivities]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  const lastWorkout = lastLoggedWorkout ?? (recentWorkouts[0] ? {
+    activityType: recentWorkouts[0].activityName,
+    points: recentWorkouts[0].points,
+    durationMinutes: undefined,
+    distanceKm: undefined,
+  } : null);
+
+  const inputConfig = selectedType ? getInputConfig(selectedType) : null;
+  const isDistance = inputConfig?.inputType === 'distance';
+  const numValue = inputConfig
+    ? isDistance
+      ? parseFloat(distance) || 0
+      : parseInt(duration, 10) || 0
+    : 0;
+  const points = inputConfig ? getPointsPreview(inputConfig.inputType, numValue) : 0;
+  const atOrOverCap = dailyCap != null && todayPoints >= dailyCap;
+  const wouldHitCap = dailyCap != null && todayPoints + points > dailyCap && todayPoints < dailyCap;
+  const pointsAfterSubmit = dailyCap != null ? Math.min(todayPoints + points, dailyCap) - todayPoints : points;
+
+  const validate = useCallback((): string | null => {
+    if (!selectedType || !inputConfig) return 'Select an activity type';
+    if (isDistance) {
+      if (!distance.trim()) return `Enter distance (${inputConfig.unit})`;
+      const v = parseFloat(distance);
+      if (isNaN(v) || v <= 0) return `Enter a valid distance in ${inputConfig.unit}`;
+    } else {
+      if (!duration.trim()) return `Enter duration (${inputConfig.unit})`;
+      const v = parseInt(duration, 10);
+      if (isNaN(v) || v <= 0) return `Enter a valid duration in ${inputConfig.unit}`;
+    }
+    if (activeRoundId == null) return 'No active round. Join a round to log workouts.';
+    if (atOrOverCap) return "You've reached your daily points cap.";
+    return null;
+  }, [selectedType, inputConfig, isDistance, duration, distance, activeRoundId, atOrOverCap]);
+
+  const runSuccessFlow = useCallback((awarded: number, activityName: string, showStreak: boolean) => {
+    setSuccessPoints(awarded);
+    setStreakMessage(showStreak ? 'Streak increased' : null);
+    successOpacity.setValue(0);
+    successScale.setValue(0.85);
+    if (selectedClub && activeRoundId) {
+      optimisticallyAddWorkout(selectedClub.id, activeRoundId, { points: awarded, activityName });
+    }
+    setLastLoggedWorkout({
+      activityType: selectedType!,
+      points: awarded,
+      durationMinutes: isDistance ? undefined : parseInt(duration, 10) || undefined,
+      distanceKm: isDistance ? parseFloat(distance) || undefined : undefined,
+    });
+    Animated.parallel([
+      Animated.timing(successOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.spring(successScale, { toValue: 1, useNativeDriver: true, damping: 14, stiffness: 120 }),
+    ]).start();
+    setTimeout(() => {
+      Animated.timing(successOpacity, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
+        setSuccessPoints(null);
+        setStreakMessage(null);
+        (navigation as any).getParent()?.navigate('MainTabs', { screen: 'HomeTab' });
       });
-    return () => {
-      cancelled = true;
+    }, 1500);
+  }, [selectedType, duration, distance, isDistance, selectedClub, activeRoundId, successOpacity, successScale, optimisticallyAddWorkout, setLastLoggedWorkout, navigation]);
+
+  const handleSubmit = async () => {
+    const err = validate();
+    if (err) {
+      setSubmitError(err);
+      return;
+    }
+    setSubmitError(null);
+    setSubmitting(true);
+    const payload: LogWorkoutPayload = {
+      activityType: selectedType!,
+      durationMinutes: isDistance ? undefined : parseInt(duration, 10) || undefined,
+      distanceKm: isDistance ? parseFloat(distance) || undefined : undefined,
+      proofUrl: hasProof ? 'proof' : undefined,
+      note: note.trim() || undefined,
+      loggedAt: new Date().toISOString(),
     };
-  }, []);
+    const result = await workoutService.logWorkout(activeRoundId!, payload);
+    setSubmitting(false);
+    if (result.success && result.data != null) {
+      const awarded = result.data.points ?? pointsAfterSubmit;
+      runSuccessFlow(awarded, selectedType!, true);
+    } else {
+      setSubmitError(result.error ?? 'Failed to log workout');
+    }
+  };
+
+  const handleRepeat = async () => {
+    if (!lastWorkout || !activeRoundId) return;
+    const activityType = lastWorkout.activityType;
+    const durationMinutes = lastWorkout.durationMinutes ?? 30;
+    const distanceKm = lastWorkout.distanceKm;
+    const isDist = getInputConfig(activityType).inputType === 'distance';
+    setSubmitting(true);
+    setSubmitError(null);
+    const payload: LogWorkoutPayload = {
+      activityType,
+      durationMinutes: isDist ? undefined : durationMinutes,
+      distanceKm: isDist ? (distanceKm ?? 5) : undefined,
+      loggedAt: new Date().toISOString(),
+    };
+    const result = await workoutService.logWorkout(activeRoundId, payload);
+    setSubmitting(false);
+    if (result.success && result.data != null) {
+      const awarded = result.data.points ?? lastWorkout.points;
+      if (selectedClub) optimisticallyAddWorkout(selectedClub.id, activeRoundId, { points: awarded, activityName: activityType });
+      setLastLoggedWorkout({ activityType, points: awarded, durationMinutes: isDist ? undefined : durationMinutes, distanceKm: isDist ? distanceKm : undefined });
+      setSuccessPoints(awarded);
+      setStreakMessage('Streak increased');
+      successOpacity.setValue(0);
+      successScale.setValue(0.85);
+      Animated.parallel([
+        Animated.timing(successOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(successScale, { toValue: 1, useNativeDriver: true, damping: 14, stiffness: 120 }),
+      ]).start();
+      setTimeout(() => {
+        Animated.timing(successOpacity, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
+          setSuccessPoints(null);
+          setStreakMessage(null);
+          (navigation as any).getParent()?.navigate('MainTabs', { screen: 'HomeTab' });
+        });
+      }, 1500);
+    } else {
+      setSubmitError(result.error ?? 'Failed to log workout');
+    }
+  };
+
+  const handleEditFromQuickLog = () => {
+    if (!lastWorkout) return;
+    setSelectedType(lastWorkout.activityType);
+    const cfg = getInputConfig(lastWorkout.activityType);
+    if (cfg.inputType === 'distance') {
+      setDistance(String(lastWorkout.distanceKm ?? 5));
+      setDuration('');
+    } else {
+      setDuration(String(lastWorkout.durationMinutes ?? 30));
+      setDistance('');
+    }
+    setSubmitError(null);
+  };
+
+  const stepUp = () => {
+    if (isDistance) {
+      const v = parseFloat(distance) || 0;
+      setDistance(String(Math.round((v + STEP_DISTANCE) * 10) / 10));
+    } else {
+      const v = parseInt(duration, 10) || 0;
+      setDuration(String(v + STEP_DURATION));
+    }
+  };
+  const stepDown = () => {
+    if (isDistance) {
+      const v = parseFloat(distance) || 0;
+      if (v > STEP_DISTANCE) setDistance(String(Math.round((v - STEP_DISTANCE) * 10) / 10));
+    } else {
+      const v = parseInt(duration, 10) || 0;
+      if (v > STEP_DURATION) setDuration(String(v - STEP_DURATION));
+    }
+  };
 
   const goBack = () => {
     if (navigation.canGoBack()) navigation.goBack();
   };
 
-  const inputConfig = selectedWorkoutType ? getInputConfig(selectedWorkoutType) : null;
-  const numValue = inputConfig
-    ? inputConfig.inputType === 'distance'
-      ? parseFloat(value) || 0
-      : parseInt(value, 10) || 0
-    : 0;
-  const points = inputConfig ? getPointsPreview(inputConfig.inputType, numValue) : 0;
-
-  const onDateChange = (_: any, selected?: Date) => {
-    setShowDatePicker(false);
-    if (selected) setDate(selected);
-  };
-
-  const onTimeChange = (_: any, selected?: Date) => {
-    setShowTimePicker(false);
-    if (selected) {
-      const next = new Date(date);
-      next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-      setDate(next);
-    }
-  };
-
-  const validate = (): boolean => {
-    if (!selectedWorkoutType || !inputConfig) {
-      Alert.alert('Select activity', 'Choose an activity type first.');
-      return false;
-    }
-    if (inputConfig.inputType === 'distance' && (numValue <= 0 || isNaN(numValue))) {
-      Alert.alert('Enter distance', `Enter a valid distance in ${inputConfig.unit}.`);
-      return false;
-    }
-    if (inputConfig.inputType === 'duration' && (numValue <= 0 || isNaN(numValue))) {
-      Alert.alert('Enter duration', `Enter a valid duration in ${inputConfig.unit}.`);
-      return false;
-    }
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    setSubmitting(true);
-    // TODO: API call to log workout
-    await new Promise((r) => setTimeout(r, 600));
-    setSubmitting(false);
-    Alert.alert('Workout logged', `You earned ${points} points!`, [{ text: 'OK', onPress: goBack }]);
-  };
-
-  const dateStr = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  const timeStr = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboard}
-      >
-        {/* Header */}
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={goBack} style={styles.backBtn} hitSlop={12} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={24} color={colors.primary} />
+    <View style={[styles.container, { backgroundColor: colors.surface }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
+        <View style={[styles.header, { paddingTop: insets.top + s.sm, paddingBottom: s.sm, paddingHorizontal: s.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+          <TouchableOpacity onPress={goBack} hitSlop={12} activeOpacity={0.8}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Log Workout</Text>
-          <View style={styles.backBtn} />
+          <Text style={[typography.h3, { color: colors.text, fontWeight: '800' }]}>Log Workout</Text>
+          <View style={{ width: 24 }} />
         </View>
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { padding: spacing.md, paddingBottom: 120 + insets.bottom }]}
+          contentContainerStyle={[styles.scrollContent, { padding: s.sm, paddingBottom: 120 + insets.bottom }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Activity chips (from API) */}
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Activity type</Text>
+          {/* 1. Quick Log */}
+          {lastWorkout && activeRoundId && (
+            <View style={[styles.quickLogCard, { backgroundColor: colors.card, borderWidth: 2, borderColor: colors.primary, borderRadius: r.sm, padding: s.md, marginBottom: s.sm, ...shadows.sm }]}>
+              <Text style={[typography.caption, { color: colors.textSecondary, fontWeight: '700', marginBottom: 4 }]}>Last logged</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: s.xs }}>
+                <View>
+                  <Text style={[typography.label, { color: colors.text, fontWeight: '800' }]} numberOfLines={1}>{lastWorkout.activityType}</Text>
+                  <Text style={[typography.caption, { color: colors.accent, fontWeight: '700' }]}>
+                    +{lastWorkout.points} pts
+                    {(lastWorkout.durationMinutes != null || lastWorkout.distanceKm != null) && (
+                      <Text style={[typography.caption, { color: colors.textSecondary }]}>
+                        {' '}· {lastWorkout.durationMinutes != null ? `${lastWorkout.durationMinutes} min` : `${lastWorkout.distanceKm} km`}
+                      </Text>
+                    )}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: s.xs }}>
+                  <TouchableOpacity onPress={handleRepeat} disabled={submitting || atOrOverCap} style={[styles.quickLogBtn, { backgroundColor: colors.primary, borderRadius: r.sm, paddingVertical: s.xs, paddingHorizontal: s.sm }]} activeOpacity={0.9}>
+                    <Text style={[typography.caption, { color: colors.heroText, fontWeight: '800' }]}>Repeat</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleEditFromQuickLog} style={[styles.quickLogBtn, { backgroundColor: colors.border, borderRadius: r.sm, paddingVertical: s.xs, paddingHorizontal: s.sm }]} activeOpacity={0.9}>
+                    <Text style={[typography.caption, { color: colors.text, fontWeight: '700' }]}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* 2. Activity type — pill cards */}
+          <Text style={[styles.sectionLabel, { color: colors.text, fontWeight: '800', marginBottom: s.xs }]}>Activity type</Text>
           {activitiesLoading ? (
-            <View style={[styles.loadingRow, { paddingVertical: spacing.md }]}>
+            <View style={[styles.loadingWrap, { paddingVertical: s.lg }]}>
               <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={[styles.loadingText, { color: colors.textSecondary, marginLeft: spacing.sm }]}>
-                Loading activities…
-              </Text>
+              <Text style={[typography.caption, { color: colors.textSecondary, marginLeft: s.sm }]}>Loading…</Text>
             </View>
           ) : activitiesError ? (
-            <View style={[styles.errorRow, { paddingVertical: spacing.md }]}>
-              <Text style={[styles.errorText, { color: colors.error }]}>{activitiesError}</Text>
-            </View>
+            <Text style={[typography.caption, { color: colors.error, fontWeight: '600' }]}>{activitiesError}</Text>
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[styles.chipsRow, { gap: spacing.xs }]}
-              style={styles.chipsScroll}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.pillRow, { gap: s.xs, paddingVertical: s.xs }]}>
               {activities.map((a) => {
-                const selected = selectedWorkoutType === a.workoutType;
-                const icon = getInputConfig(a.workoutType).icon;
+                const config = getInputConfig(a.workoutType);
+                const selected = selectedType === a.workoutType;
                 return (
                   <TouchableOpacity
                     key={a.id}
-                    onPress={() => setSelectedWorkoutType(a.workoutType)}
-                    activeOpacity={0.8}
+                    onPress={() => { setSelectedType(a.workoutType); setSubmitError(null); }}
+                    activeOpacity={0.85}
                     style={[
-                      styles.chip,
+                      styles.pill,
                       {
-                        backgroundColor: selected ? colors.primary : colors.surface,
-                        borderColor: selected ? colors.primary : colors.border,
+                        backgroundColor: selected ? colors.primary : colors.card,
                         borderWidth: 2,
-                        paddingVertical: spacing.sm,
-                        paddingHorizontal: spacing.sm,
-                        borderRadius: radius.lg,
+                        borderColor: selected ? colors.primary : colors.border,
+                        borderRadius: r.sm,
+                        paddingVertical: s.sm,
+                        paddingHorizontal: s.md,
+                        ...(selected ? shadows.sm : {}),
                       },
                     ]}
                   >
-                    <Ionicons
-                      name={icon}
-                      size={22}
-                      color={selected ? colors.textInverse : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.chipLabel,
-                        { color: selected ? colors.textInverse : colors.text },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {a.workoutType}
-                    </Text>
+                    <Ionicons name={config.icon} size={22} color={selected ? colors.heroText : colors.textSecondary} />
+                    <Text style={[typography.caption, { color: selected ? colors.heroText : colors.text, fontWeight: '800', marginLeft: 6 }]} numberOfLines={1}>{a.workoutType}</Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
           )}
 
-          {inputConfig && selectedWorkoutType && (
+          {/* 3. Dynamic inputs + stepper */}
+          {inputConfig && selectedType && (
             <>
-              {/* Distance or Duration */}
-              <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: spacing.lg }]}>
+              <Text style={[styles.sectionLabel, { color: colors.text, fontWeight: '800', marginTop: s.md, marginBottom: s.xs }]}>
                 {inputConfig.inputType === 'distance' ? 'Distance' : 'Duration'}
               </Text>
-              <View style={styles.valueRow}>
-                <Input
-                  value={value}
-                  onChangeText={setValue}
-                  placeholder={inputConfig.inputType === 'distance' ? '0.0' : '0'}
-                  keyboardType={inputConfig.inputType === 'distance' ? 'decimal-pad' : 'number-pad'}
-                  style={[
-                    styles.valueInput,
-                    {
-                      marginBottom: 0,
-                      borderTopRightRadius: 0,
-                      borderBottomRightRadius: 0,
-                      borderRightWidth: 0,
-                    },
-                  ]}
+              <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: r.sm, borderWidth: 1, ...shadows.sm }]}>
+                <TouchableOpacity onPress={stepDown} style={[styles.stepperBtn, { borderRightWidth: 1, borderRightColor: colors.border }]} activeOpacity={0.8}>
+                  <Ionicons name="remove" size={28} color={colors.text} />
+                </TouchableOpacity>
+                <TextInput
+                  value={isDistance ? distance : duration}
+                  onChangeText={isDistance ? setDistance : setDuration}
+                  placeholder={isDistance ? '0.0' : '0'}
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType={isDistance ? 'decimal-pad' : 'number-pad'}
+                  style={[styles.bigInput, { color: colors.text }]}
                 />
-                <View style={[styles.unitWrap, { backgroundColor: colors.borderLight, borderColor: colors.border }]}>
-                  <Text style={[styles.unit, { color: colors.textSecondary }]}>{inputConfig.unit}</Text>
+                <View style={[styles.unitBadge, { backgroundColor: colors.border }]}>
+                  <Text style={[typography.label, { color: colors.text, fontWeight: '800' }]}>{inputConfig.unit}</Text>
                 </View>
-              </View>
-
-              {/* Date & time */}
-              <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: spacing.lg }]}>
-                Date & time
-              </Text>
-              <View style={styles.datetimeRow}>
-                <TouchableOpacity
-                  onPress={() => setShowDatePicker(true)}
-                  style={[styles.datetimeBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-                  <Text style={[styles.datetimeText, { color: colors.text }]}>{dateStr}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowTimePicker(true)}
-                  style={[styles.datetimeBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="time-outline" size={20} color={colors.primary} />
-                  <Text style={[styles.datetimeText, { color: colors.text }]}>{timeStr}</Text>
+                <TouchableOpacity onPress={stepUp} style={[styles.stepperBtn, { borderLeftWidth: 1, borderLeftColor: colors.border }]} activeOpacity={0.8}>
+                  <Ionicons name="add" size={28} color={colors.text} />
                 </TouchableOpacity>
               </View>
-
-              {showDatePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display="default"
-                  onChange={onDateChange}
-                />
+              {(isDistance ? parseFloat(distance) <= 0 : (parseInt(duration, 10) || 0) <= 0) && (isDistance ? distance.trim() : duration.trim()) && (
+                <Text style={[typography.caption, { color: colors.error, marginTop: 4, fontWeight: '600' }]}>Enter a value greater than 0</Text>
               )}
-              {showTimePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="time"
-                  display="default"
-                  onChange={onTimeChange}
-                />
+              {dailyCap != null && (
+                <View style={[styles.capRow, { marginTop: s.sm }]}>
+                  {atOrOverCap ? (
+                    <Text style={[typography.caption, { color: colors.warning, fontWeight: '700' }]}>Daily cap reached ({todayPoints}/{dailyCap} pts). Log tomorrow.</Text>
+                  ) : wouldHitCap ? (
+                    <Text style={[typography.caption, { color: colors.warning, fontWeight: '600' }]}>You'll hit daily cap — only +{Math.max(0, dailyCap - todayPoints)} pts will count today.</Text>
+                  ) : (
+                    <Text style={[typography.caption, { color: colors.textSecondary, fontWeight: '600' }]}>Today: {todayPoints}/{dailyCap} pts</Text>
+                  )}
+                </View>
               )}
 
-              {/* Optional proof */}
-              <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: spacing.lg }]}>
-                Proof (optional)
-              </Text>
-              <TouchableOpacity
-                onPress={() => setHasProof(!hasProof)}
-                style={[
-                  styles.proofBtn,
-                  {
-                    backgroundColor: hasProof ? colors.accentMuted : colors.surface,
-                    borderColor: hasProof ? colors.accent : colors.border,
-                    borderWidth: 2,
-                  },
-                ]}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={hasProof ? 'checkmark-circle' : 'cloud-upload-outline'}
-                  size={24}
-                  color={hasProof ? colors.accent : colors.textMuted}
-                />
-                <Text style={[styles.proofText, { color: hasProof ? colors.accent : colors.textSecondary }]}>
-                  {hasProof ? 'Proof added' : 'Add photo or link'}
-                </Text>
+              {/* 4. Live points preview */}
+              <View style={[styles.pointsPreview, { marginTop: s.md, backgroundColor: colors.card, borderWidth: 2, borderColor: colors.accent, borderRadius: r.sm, paddingVertical: s.md, ...shadows.sm }]}>
+                <Text style={[styles.pointsValue, { color: colors.accent, fontWeight: '800' }]}>+{dailyCap != null ? pointsAfterSubmit : points} pts</Text>
+              </View>
+
+              {/* 5. Optional — collapsed */}
+              <TouchableOpacity onPress={() => setOptionalExpanded(!optionalExpanded)} style={[styles.optionalToggle, { marginTop: s.md, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: s.sm }]} activeOpacity={0.8}>
+                <Text style={[typography.caption, { color: colors.textSecondary, fontWeight: '700' }]}>Note & proof (optional)</Text>
+                <Ionicons name={optionalExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
               </TouchableOpacity>
-
-              {/* Points preview */}
-              <Card style={[styles.pointsCard, { marginTop: spacing.lg }]}>
-                <Text style={[styles.pointsLabel, { color: colors.textSecondary }]}>
-                  You will earn
-                </Text>
-                <Text style={[styles.pointsValue, { color: colors.accent }]}>
-                  {points.toFixed(1)} points
-                </Text>
-              </Card>
+              {optionalExpanded && (
+                <View style={{ marginTop: s.xs }}>
+                  <TextInput value={note} onChangeText={setNote} placeholder="Add a note" placeholderTextColor={colors.textMuted} style={[styles.noteInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} multiline />
+                  <TouchableOpacity onPress={() => setHasProof(!hasProof)} style={[styles.proofBtn, { backgroundColor: hasProof ? colors.accentMuted : colors.card, borderColor: hasProof ? colors.accent : colors.border, marginTop: s.sm }]} activeOpacity={0.8}>
+                    <Ionicons name={hasProof ? 'checkmark-circle' : 'cloud-upload-outline'} size={20} color={hasProof ? colors.accent : colors.textSecondary} />
+                    <Text style={[typography.caption, { color: hasProof ? colors.accent : colors.textSecondary, fontWeight: '600' }]}>{hasProof ? 'Proof added' : 'Upload proof'}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </>
           )}
+
+          {submitError && <Text style={[typography.caption, { color: colors.error, fontWeight: '600', marginTop: s.sm }]}>{submitError}</Text>}
         </ScrollView>
 
-        {/* Sticky submit */}
-        <View
-          style={[
-            styles.stickyFooter,
-            {
-              paddingBottom: insets.bottom + spacing.sm,
-              paddingHorizontal: spacing.md,
-              paddingTop: spacing.sm,
-              backgroundColor: colors.surface,
-              borderTopColor: colors.border,
-            },
-          ]}
-        >
-          <Button
-            title="Submit workout"
+        {/* 6. Sticky CTA */}
+        <View style={[styles.footer, { paddingTop: s.sm, paddingBottom: insets.bottom + s.sm, paddingHorizontal: s.md, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border }]}>
+          <TouchableOpacity
             onPress={handleSubmit}
-            loading={submitting}
-            disabled={!inputConfig || !selectedWorkoutType || !value.trim()}
-            fullWidth
-            style={styles.submitBtn}
-          />
+            disabled={submitting || !selectedType || (isDistance ? !distance.trim() : !duration.trim()) || atOrOverCap || !activeRoundId}
+            activeOpacity={0.9}
+            style={[styles.cta, { backgroundColor: (submitting || !selectedType || atOrOverCap || !activeRoundId) ? colors.border : colors.primary, borderRadius: r.sm, paddingVertical: s.md }]}
+          >
+            {submitting ? <ActivityIndicator size="small" color={colors.heroText} /> : <Text style={[typography.label, { color: colors.heroText, fontWeight: '800' }]}>Log Workout</Text>}
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* 7. Success overlay */}
+      {successPoints != null && (
+        <Animated.View style={[styles.successOverlay, { backgroundColor: colors.surface, opacity: successOpacity }]} pointerEvents="box-none">
+          <Animated.View style={[styles.successContent, { transform: [{ scale: successScale }] }]}>
+            <Text style={[styles.successPts, { color: colors.accent }]}>+{successPoints} pts</Text>
+            {streakMessage && <Text style={[typography.label, { color: colors.text, marginTop: s.xs }]}>🔥 {streakMessage}</Text>}
+            {!streakMessage && <Text style={[typography.caption, { color: colors.textSecondary, marginTop: s.xs }]}>Logged</Text>}
+          </Animated.View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -325,88 +436,28 @@ export default function WorkoutNewScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   keyboard: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 52,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  backBtn: { width: 40, alignItems: 'flex-start' },
-  title: { fontSize: 18, fontWeight: '700' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   scroll: { flex: 1 },
   scrollContent: {},
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  chipsRow: { paddingVertical: 4 },
-  chipsScroll: { marginHorizontal: -24 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  chipLabel: { fontSize: 16, fontWeight: '700' },
-  loadingRow: { flexDirection: 'row', alignItems: 'center' },
-  loadingText: {},
-  errorRow: {},
-  errorText: { fontSize: 14 },
-  valueRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 0,
-  },
-  valueInput: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: '700',
-    minHeight: 56,
-  },
-  unitWrap: {
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 16,
-    borderWidth: 1,
-    borderLeftWidth: 0,
-  },
-  unit: { fontSize: 16, fontWeight: '700' },
-  datetimeRow: { flexDirection: 'row', gap: 12 },
-  datetimeBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  datetimeText: { fontSize: 16, fontWeight: '600' },
-  proofBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-  },
-  proofText: { fontSize: 16, fontWeight: '600' },
-  pointsCard: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  pointsLabel: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
-  pointsValue: { fontSize: 28, fontWeight: '800' },
-  stickyFooter: {
-    borderTopWidth: 1,
-  },
-  submitBtn: {},
+  sectionLabel: {},
+  quickLogCard: {},
+  quickLogBtn: {},
+  loadingWrap: { flexDirection: 'row', alignItems: 'center' },
+  pillRow: { paddingHorizontal: 2 },
+  pill: { flexDirection: 'row', alignItems: 'center' },
+  inputRow: { flexDirection: 'row', alignItems: 'stretch' },
+  stepperBtn: { paddingHorizontal: 12, justifyContent: 'center', minWidth: 48 },
+  bigInput: { flex: 1, fontSize: 28, fontWeight: '800', paddingVertical: 16, paddingHorizontal: 8, textAlign: 'center' },
+  unitBadge: { paddingHorizontal: 16, justifyContent: 'center', borderTopRightRadius: 6, borderBottomRightRadius: 6 },
+  capRow: {},
+  pointsPreview: { alignItems: 'center' },
+  pointsValue: { fontSize: 36 },
+  optionalToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  noteInput: { borderWidth: 1, borderRadius: 6, padding: 12, minHeight: 72, fontSize: 14 },
+  proofBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 6, borderWidth: 1 },
+  footer: {},
+  cta: { alignItems: 'center', justifyContent: 'center' },
+  successOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
+  successContent: { alignItems: 'center' },
+  successPts: { fontSize: 48, fontWeight: '800' },
 });

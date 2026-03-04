@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,13 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { useClub } from '../context/ClubContext';
 import { clubService } from '../services/clubService';
 import { teamService } from '../services/teamService';
 import { Card, PointsText, LeaderboardRank } from '../components';
-import { shadows } from '../theme/tokens';
 import type { TeamDetail, TeamMember } from '../types/team';
-import type { Theme } from '../theme/theme';
+import type { Theme } from '../theme';
 
 function TeamMemberCard({ member, theme: t }: { member: TeamMember; theme: Theme }) {
   const initial = member.name.charAt(0).toUpperCase();
@@ -33,7 +32,7 @@ function TeamMemberCard({ member, theme: t }: { member: TeamMember; theme: Theme
             borderColor: isYou ? t.colors.primary : t.colors.border,
             borderRadius: t.radius.lg,
           },
-          isYou && shadows.md,
+          isYou && t.shadows.md,
         ]}
     >
       <View style={styles.memberRow}>

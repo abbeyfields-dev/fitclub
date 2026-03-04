@@ -84,6 +84,12 @@ export const clubService = {
         dailyCap: number;
         myTeamRank: number | null;
         myTeamName: string | null;
+        myRoundPoints: number;
+        myTeamTotal: number;
+        workoutCount: number;
+        weeklyActivity: Array<{ date: string; points: number }>;
+        currentStreak: number;
+        estimatedCalories: number;
       };
     }>(`/clubs/${clubId}/dashboard`);
   },

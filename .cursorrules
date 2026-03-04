@@ -1,5 +1,14 @@
 # FitClub project rules
 
+## UI (all new frontend UI)
+
+- **Colors**: `bg-neutral-50` / `bg-background` and `text-neutral-900` / `text-primary-500` (or RN: `theme.colors.background`, `theme.colors.text`, `theme.colors.primary`). Never use raw hex, rgb, or named colors in components.
+- **Spacing**: Use the spacing scale only (e.g. `theme.spacing.sm`, `theme.spacing.md`; or Tailwind `p-4`, `m-2`). No arbitrary padding/margin.
+- **Radius**: Use border radius tokens only (`theme.radius.sm/md/lg` or `rounded-sm/md/lg`). No arbitrary values.
+- **No inline styles**: Prefer StyleSheet + theme (RN) or Tailwind utility classes; never inline style objects with hex or magic numbers.
+
+See `.cursor/rules/ui-design-tokens.mdc` for the full rule.
+
 ## Reference codebase: TeenLifeManager (read-only)
 
 **Do not modify any file in the TeenLifeManager folder from this workspace.** TeenLifeManager is included for reference only. You may read and copy from it (structure, patterns, docs); never edit, move, or delete files in that project.

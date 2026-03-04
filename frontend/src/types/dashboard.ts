@@ -1,6 +1,7 @@
 export type DashboardRound = {
   id: string;
   name: string;
+  startDate?: string;
   daysLeft: number;
   endDate: string;
 };
@@ -22,8 +23,16 @@ export type RecentWorkout = {
 export type DashboardData = {
   round: DashboardRound;
   teamRank: TeamRank | null;
+  myTeamRank: number | null;
   todayPoints: number;
   dailyCap: number;
   topTeams: TeamRank[];
+  topTeamsAll: Array<{ rank: number; teamName: string; points: number }>;
   recentWorkouts: RecentWorkout[];
+  myRoundPoints: number;
+  myTeamTotal: number;
+  workoutCount: number;
+  weeklyActivity: Array<{ date: string; points: number }>;
+  currentStreak: number;
+  estimatedCalories: number;
 };

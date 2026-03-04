@@ -1,18 +1,17 @@
 import type { Theme } from '@react-navigation/native';
 import { DefaultTheme } from '@react-navigation/native';
-import { lightColors } from '../theme/colors';
-import { darkColors } from '../theme/colors';
+import { lightTheme, darkTheme } from '../theme';
 
 export const navLightTheme: Theme = {
   ...DefaultTheme,
   dark: false,
   colors: {
-    primary: lightColors.primary,
-    background: lightColors.background,
-    card: lightColors.surface,
-    text: lightColors.text,
-    border: lightColors.border,
-    notification: lightColors.accent,
+    primary: lightTheme.colors.primary,
+    background: lightTheme.colors.background,
+    card: lightTheme.colors.surface,
+    text: lightTheme.colors.text,
+    border: lightTheme.colors.border,
+    notification: lightTheme.colors.accent,
   },
 };
 
@@ -20,11 +19,11 @@ export const navDarkTheme: Theme = {
   ...DefaultTheme,
   dark: true,
   colors: {
-    primary: darkColors.primary,
-    background: darkColors.background,
-    card: darkColors.surface,
-    text: darkColors.text,
-    border: darkColors.border,
-    notification: darkColors.accent,
+    primary: darkTheme.colors.primary,
+    background: darkTheme.colors.background,
+    card: darkTheme.colors.surface,
+    text: darkTheme.colors.text,
+    border: darkTheme.colors.border,
+    notification: darkTheme.colors.accent,
   },
 };

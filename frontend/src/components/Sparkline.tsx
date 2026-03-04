@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 
 type SparklineProps = {
   /** Last N values (e.g. 7 days), will be normalized to height */

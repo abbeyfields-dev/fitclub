@@ -1,52 +1,41 @@
 import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  ViewStyle,
-  TextStyle,
-} from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, Platform } from 'react-native';
+import { useAppTheme } from '../theme';
+import { spacing, radius, typography } from '../theme/tokens';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'accent';
+type ButtonVariant = 'primary' | 'outline';
 
 type ButtonProps = {
   title: string;
   onPress: () => void;
-  disabled?: boolean;
-  loading?: boolean;
   variant?: ButtonVariant;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
-  icon?: React.ReactNode;
   fullWidth?: boolean;
+  loading?: boolean;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+  style?: ViewStyle;
+  /** Override label (and loading indicator) color, e.g. for Apple button (black in light mode) */
+  titleColor?: string;
 };
+
+const BUTTON_RADIUS = 14;
 
 export function Button({
   title,
   onPress,
-  disabled = false,
-  loading = false,
   variant = 'primary',
-  style,
-  textStyle,
-  icon,
   fullWidth,
+  loading = false,
+  disabled = false,
+  icon,
+  style,
+  titleColor: titleColorProp,
 }: ButtonProps) {
-  const theme = useTheme();
-  const { colors, spacing, radius, typography } = theme;
-
+  const theme = useAppTheme();
+  const isOutline = variant === 'outline';
   const isDisabled = disabled || loading;
-
-  const variantStyles: Record<ButtonVariant, { bg: string; text: string }> = {
-    primary: { bg: colors.primary, text: colors.textInverse },
-    secondary: { bg: colors.primaryMuted, text: colors.primary },
-    ghost: { bg: 'transparent', text: colors.primary },
-    accent: { bg: colors.accent, text: colors.text },
-  };
-
-  const v = variantStyles[variant];
+  const defaultTextColor = isOutline ? theme.colors.primary : theme.colors.textInverse;
+  const textColor = titleColorProp ?? defaultTextColor;
 
   return (
     <TouchableOpacity
@@ -54,26 +43,25 @@ export function Button({
       disabled={isDisabled}
       activeOpacity={0.85}
       style={[
-        styles.btn,
+        styles.button,
         {
-          backgroundColor: v.bg,
-          borderRadius: radius.lg,
-          paddingVertical: spacing.sm,
-          paddingHorizontal: spacing.md,
-          opacity: isDisabled ? 0.6 : 1,
+          backgroundColor: isOutline ? theme.colors.transparent : theme.colors.primary,
+          borderWidth: isOutline ? 1 : 0,
+          borderColor: isOutline ? theme.colors.border : undefined,
+          borderRadius: BUTTON_RADIUS,
           width: fullWidth ? '100%' : undefined,
+          opacity: isDisabled ? 0.6 : 1,
+          ...(Platform.OS === 'ios' ? theme.shadows.sm : { elevation: 2 }),
         },
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={v.text} size="small" />
+        <ActivityIndicator color={textColor} size="small" />
       ) : (
         <>
           {icon}
-          <Text style={[styles.text, { color: v.text, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight }, textStyle]}>
-            {title}
-          </Text>
+          <Text style={[styles.text, { color: textColor }]}>{title}</Text>
         </>
       )}
     </TouchableOpacity>
@@ -81,11 +69,17 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
-  btn: {
+  button: {
     flexDirection: 'row',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    minHeight: 48,
+    gap: spacing.sm,
   },
-  text: {},
+  text: {
+    fontSize: typography.bodyLarge,
+    fontWeight: '600',
+  },
 });

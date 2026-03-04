@@ -1,6 +1,7 @@
 import prisma from '../config/database';
 import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
 import { ClubService } from './club.service';
+import { notifyChallengeLive } from './notification.service';
 
 export type RoundCreateInput = {
   name: string;
@@ -69,6 +70,8 @@ export class RoundService {
         data: { status: 'active' },
       });
     });
+
+    notifyChallengeLive(round.clubId, round.name).catch(() => {});
 
     return prisma.round.findUniqueOrThrow({
       where: { id: roundId },

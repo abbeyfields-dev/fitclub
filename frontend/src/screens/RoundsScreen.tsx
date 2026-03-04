@@ -14,11 +14,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { Card } from '../components';
 import { useClub } from '../context/ClubContext';
 import { roundService, type Round } from '../services/roundService';
-import { shadows } from '../theme/tokens';
 
 const DEFAULT_SCORING_CONFIG = { dailyCap: 100, pointsPerMinute: 1 };
 
@@ -180,6 +179,7 @@ export default function RoundsScreen() {
   }
 
   const statusColor = (s: string) => (s === 'active' ? colors.accent : s === 'ended' ? colors.textMuted : colors.primary);
+  const statusBgColor = (s: string) => (s === 'active' ? colors.accentMuted : s === 'ended' ? colors.borderLight : colors.primaryMuted);
 
   return (
     <>
@@ -210,14 +210,14 @@ export default function RoundsScreen() {
           {rounds.map((r) => {
             const busy = actioningId === r.id;
             return (
-              <Card key={r.id} style={[styles.roundCard, { padding: spacing.md, ...shadows.sm }]}>
+              <Card key={r.id} style={[styles.roundCard, { padding: spacing.md, ...theme.shadows.sm }]}>
                 <View style={styles.roundRow}>
                   <View style={styles.roundBody}>
                     <Text style={[typography.h3, { color: colors.text }]} numberOfLines={1}>{r.name}</Text>
                     <Text style={[typography.bodySmall, { color: colors.textSecondary, marginTop: spacing.xxs }]}>
                       {new Date(r.startDate).toLocaleDateString()} – {new Date(r.endDate).toLocaleDateString()}
                     </Text>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor(r.status) + '20', paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.sm, alignSelf: 'flex-start', marginTop: spacing.xs }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusBgColor(r.status), paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.sm, alignSelf: 'flex-start', marginTop: spacing.xs }]}>
                       <Text style={[typography.caption, { fontWeight: '600', color: statusColor(r.status) }]}>{r.status}</Text>
                     </View>
                   </View>
@@ -253,7 +253,7 @@ export default function RoundsScreen() {
       </ScrollView>
 
       <Modal visible={modalOpen !== null} transparent animationType="fade">
-        <Pressable style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setModalOpen(null)}>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setModalOpen(null)}>
           <Pressable style={[styles.modalBox, { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg }]} onPress={(e) => e.stopPropagation()}>
             <Text style={[typography.h2, { color: colors.text, marginBottom: spacing.md }]}>{modalOpen === 'create' ? 'Create challenge' : 'Edit challenge'}</Text>
             {formError && (

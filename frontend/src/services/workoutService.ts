@@ -26,9 +26,39 @@ export type WorkoutActivity = {
   maxMetLimit: number | null;
 };
 
+export type LogWorkoutPayload = {
+  activityType: string;
+  durationMinutes?: number | null;
+  distanceKm?: number | null;
+  proofUrl?: string | null;
+  note?: string | null;
+  loggedAt?: string; // ISO
+};
+
 export const workoutService = {
   /** List generic workout types for the workout screen (activity options). */
   listActivities() {
     return request<{ success: boolean; data: WorkoutActivity[] }>('/workouts/activities');
+  },
+
+  /** Log a workout for the active round. Returns awarded points. */
+  async logWorkout(roundId: string, payload: LogWorkoutPayload): Promise<{ success: boolean; data?: { points: number }; error?: string }> {
+    try {
+      const res = await request<{ success: boolean; data: { id: string; points: number }; message?: string }>(`/rounds/${roundId}/workouts`, {
+        method: 'POST',
+        body: JSON.stringify({
+          activityType: payload.activityType,
+          durationMinutes: payload.durationMinutes ?? undefined,
+          distanceKm: payload.distanceKm ?? undefined,
+          proofUrl: payload.proofUrl ?? undefined,
+          note: payload.note ?? undefined,
+          loggedAt: payload.loggedAt ?? new Date().toISOString(),
+        }),
+      });
+      return { success: true, data: { points: res.data?.points ?? 0 } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to log workout';
+      return { success: false, error: message };
+    }
   },
 };

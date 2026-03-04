@@ -1,32 +1,76 @@
 import React from 'react';
-import { TextInput, TextInputProps, ViewStyle } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { View, TextInput, TextInputProps, StyleSheet, ViewStyle } from 'react-native';
+import { useAppTheme } from '../theme';
+import { spacing, radius, typography } from '../theme/tokens';
 
-type InputProps = TextInputProps & {
+export type InputProps = TextInputProps & {
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
   containerStyle?: ViewStyle;
+  /** When true, no border/background (parent controls wrapper style) */
+  unstyled?: boolean;
 };
 
-export function Input({ containerStyle, style, placeholderTextColor, ...props }: InputProps) {
-  const theme = useTheme();
-  const { colors, spacing, radius, typography } = theme;
+export function Input({
+  leftIcon,
+  rightIcon,
+  containerStyle,
+  unstyled = false,
+  style,
+  placeholderTextColor,
+  ...props
+}: InputProps) {
+  const theme = useAppTheme();
+
+  const inputStyle = [
+    styles.input,
+    unstyled
+      ? {
+          flex: 1,
+          backgroundColor: theme.colors.transparent,
+          borderWidth: 0,
+          paddingVertical: spacing.xs,
+        }
+      : {
+          backgroundColor: theme.colors.inputBackground,
+          borderColor: theme.colors.border,
+          color: theme.colors.textPrimary,
+        },
+    style,
+  ];
+
+  if (leftIcon != null || rightIcon != null) {
+    return (
+      <View style={[styles.row, { gap: spacing.sm }, containerStyle]} pointerEvents="box-none">
+        {leftIcon}
+        <TextInput
+          {...props}
+          placeholderTextColor={placeholderTextColor ?? theme.colors.textMuted}
+          style={inputStyle}
+        />
+        {rightIcon}
+      </View>
+    );
+  }
 
   return (
     <TextInput
-      placeholderTextColor={placeholderTextColor ?? colors.textMuted}
-      style={[
-        {
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: radius.lg,
-          paddingVertical: spacing.sm,
-          paddingHorizontal: spacing.sm,
-          fontSize: typography.body.fontSize,
-          color: colors.text,
-        },
-        style,
-      ]}
       {...props}
+      placeholderTextColor={placeholderTextColor ?? theme.colors.textMuted}
+      style={inputStyle}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  input: {
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    fontSize: typography.bodyLarge,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+});

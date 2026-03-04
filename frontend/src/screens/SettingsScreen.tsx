@@ -3,8 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
-import { useThemeContext } from '../theme/ThemeContext';
+import { useTheme, useThemeContext } from '../theme';
 import type { ThemePreference } from '../store/themeStore';
 import { Card } from '../components';
 

@@ -19,8 +19,22 @@ model User {
   TeamMemberships TeamMembership[]
   Workouts        Workout[]
   ScoreLedgers    ScoreLedger[]
+  PushTokens      PushToken[]
 
   @@index([email])
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   // Expo push token (e.g. ExponentPushToken[...])
+  platform  String?  // ios | android
+  createdAt DateTime @default(now())
+
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
 }
 
 model Club {
@@ -49,6 +63,8 @@ enum RoundStatus {
   @@map("round_status")
 }
 
+// A user can be part of multiple clubs (multiple ClubMembership rows per userId).
+// @@unique([userId, clubId]) ensures at most one membership per user per club.
 model ClubMembership {
   id        String   @id @default(uuid())
   userId    String
@@ -100,6 +116,10 @@ model Team {
   @@index([roundId])
 }
 
+// Business rules (enforced in DB + TeamService):
+// - A user can be in multiple clubs and, within a club, in multiple teams across different rounds.
+// - A user can be in only ONE team per club per round (enforced by @@unique([userId, roundId])).
+// - Historically a user may have been on different teams in the same club (different rounds).
 model TeamMembership {
   id        String   @id @default(uuid())
   userId    String
@@ -111,7 +131,7 @@ model TeamMembership {
   Round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
   @@unique([userId, teamId])
-  @@unique([userId, roundId])
+  @@unique([userId, roundId]) // One team per user per round (per club, since round belongs to club).
   @@index([userId])
   @@index([teamId])
   @@index([roundId])

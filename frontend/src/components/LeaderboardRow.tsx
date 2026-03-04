@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
-import { shadows } from '../theme/tokens';
+import { useTheme } from '../theme';
 import type { LeaderboardEntry } from '../types/leaderboard';
 
 const RANK_MEDAL: Record<1 | 2 | 3, string> = {
@@ -33,7 +32,7 @@ export function LeaderboardRow({ item }: LeaderboardRowProps) {
           borderWidth: 1,
           borderColor: item.isCurrentUser ? colors.primary : colors.border,
           marginBottom: spacing.sm,
-          ...(isTop3 ? shadows.md : shadows.sm),
+          ...(isTop3 ? theme.shadows.md : theme.shadows.sm),
         },
       ]}
     >

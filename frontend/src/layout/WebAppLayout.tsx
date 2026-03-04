@@ -7,7 +7,7 @@ import { WebStack } from '../navigation/WebStack';
 import type { WebRouteId } from './webNavConfig';
 import type { WebStackParamList } from '../navigation/types';
 
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 
 const WEB_SIDEBAR_ROUTES: WebRouteId[] = [
   'Dashboard',

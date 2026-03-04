@@ -9,17 +9,18 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { Card } from '../components';
 import { useClub } from '../context/ClubContext';
 import { useAuthStore } from '../store/authStore';
 import { clubService, type ClubMember } from '../services/clubService';
 import { roundService } from '../services/roundService';
-import { shadows } from '../theme/tokens';
 
 export default function MembersScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const { colors, spacing, radius, typography } = theme;
@@ -143,11 +144,18 @@ export default function MembersScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.header, { marginBottom: spacing.lg }]}>
-        <Text style={[typography.h1, { color: colors.text }]}>Members</Text>
-        <Text style={[typography.bodySmall, { color: colors.textSecondary, marginTop: spacing.xxs }]}>
-          {members.length} member{members.length !== 1 ? 's' : ''}
-        </Text>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.lg }]}>
+        {navigation.canGoBack?.() && (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: spacing.xs, marginRight: spacing.sm }} hitSlop={12}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={[typography.h1, { color: colors.text }]}>Members</Text>
+          <Text style={[typography.bodySmall, { color: colors.textSecondary, marginTop: spacing.xxs }]}>
+            {members.length} member{members.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
       </View>
 
       {error && (
@@ -161,7 +169,7 @@ export default function MembersScreen() {
           const isYou = m.userId === currentUserId;
           const busy = actioningId === m.userId;
           return (
-            <Card key={m.id} style={[styles.memberCard, { padding: spacing.md, ...shadows.sm }]}>
+            <Card key={m.id} style={[styles.memberCard, { padding: spacing.md, ...theme.shadows.sm }]}>
               <View style={styles.memberRow}>
                 <View style={[styles.avatar, { backgroundColor: colors.primaryMuted, width: 44, height: 44, borderRadius: 22 }]}>
                   <Text style={[typography.h3, { color: colors.primary }]}>{m.displayName.charAt(0).toUpperCase()}</Text>

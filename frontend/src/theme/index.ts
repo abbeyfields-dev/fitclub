@@ -1,4 +1,10 @@
-export { lightTheme, darkTheme } from './theme';
-export type { Theme, ThemeColors } from './theme';
+/**
+ * Theme public API.
+ * Structure: tokens (shared) + light/dark (themes) + ThemeContext (provider + useTheme).
+ */
+
+export { spacing, radius, shadows, animation } from './tokens';
+export { lightTheme, type Theme, type ThemeColors } from './light';
+export { darkTheme } from './dark';
 export { ThemeProvider, useTheme, useThemeContext } from './ThemeContext';
-export { spacing, radius, typography, shadows, animation } from './tokens';
+export { useAppTheme } from './useAppTheme';

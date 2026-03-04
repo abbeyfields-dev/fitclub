@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import Svg, { Circle, G, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 
 const GRADIENT_ID = 'progressRingGradient';
 const GLOW_OPACITY = 0.35;
@@ -85,7 +85,7 @@ export function CircularProgressRing({
           r={r}
           stroke={colors.border}
           strokeWidth={strokeWidth}
-          fill="transparent"
+          fill={colors.transparent}
         />
         <G rotation={-90} origin={[cx, cx]}>
           {/* Glow layer — same path, thicker stroke, lower opacity */}
@@ -96,7 +96,7 @@ export function CircularProgressRing({
               r={r}
               stroke={colors.accent}
               strokeWidth={strokeWidth + GLOW_STROKE_BONUS}
-              fill="transparent"
+              fill={colors.transparent}
               strokeDasharray={`${circumference} ${circumference}`}
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
@@ -110,7 +110,7 @@ export function CircularProgressRing({
             r={r}
             stroke={progressStroke}
             strokeWidth={strokeWidth}
-            fill="transparent"
+            fill={colors.transparent}
             strokeDasharray={`${circumference} ${circumference}`}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"

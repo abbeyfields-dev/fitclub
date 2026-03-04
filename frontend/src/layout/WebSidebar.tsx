@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { useClub } from '../context/ClubContext';
 import { useWindowWidth, useSidebarCollapsedByDefault } from '../hooks';
 import { WEB_NAV_ITEMS, type WebRouteId, type WebNavItem } from './webNavConfig';
@@ -118,7 +118,7 @@ function SidebarItem({
       style={[
         styles.item,
         {
-          backgroundColor: active ? colors.primaryMuted : 'transparent',
+          backgroundColor: active ? colors.primaryMuted : colors.transparent,
           marginHorizontal: spacing.xs,
           paddingVertical: spacing.sm,
           paddingHorizontal: collapsed ? spacing.xs : spacing.sm,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TextStyle } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 
 type PointsTextProps = {
   value: number | string;

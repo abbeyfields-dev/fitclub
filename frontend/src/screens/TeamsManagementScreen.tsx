@@ -12,19 +12,20 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { Card } from '../components';
 import { useClub } from '../context/ClubContext';
 import { clubService, type ClubMember } from '../services/clubService';
 import { roundService } from '../services/roundService';
 import { teamService, type Team } from '../services/teamService';
-import { shadows } from '../theme/tokens';
 
 type MemberWithStatus = ClubMember & { status: 'available' | 'in_team'; teamName?: string };
 
 export default function TeamsManagementScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const { colors, spacing, radius, typography } = theme;
@@ -213,9 +214,16 @@ export default function TeamsManagementScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg, flexWrap: 'wrap', gap: spacing.sm }]}>
-          <View>
-            <Text style={[typography.h1, { color: colors.text }]}>Teams</Text>
-            <Text style={[typography.bodySmall, { color: colors.textSecondary, marginTop: spacing.xxs }]}>{activeRound.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 }}>
+            {navigation.canGoBack?.() && (
+              <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: spacing.xs, marginRight: spacing.sm }} hitSlop={12}>
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+            )}
+            <View>
+              <Text style={[typography.h1, { color: colors.text }]}>Teams</Text>
+              <Text style={[typography.bodySmall, { color: colors.textSecondary, marginTop: spacing.xxs }]}>{activeRound.name}</Text>
+            </View>
           </View>
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: colors.primary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.xs }]}
@@ -234,7 +242,7 @@ export default function TeamsManagementScreen() {
 
         <View style={{ gap: spacing.sm }}>
           {teams.map((team) => (
-            <Card key={team.id} style={[styles.teamCard, { padding: spacing.md, ...shadows.sm }]}>
+            <Card key={team.id} style={[styles.teamCard, { padding: spacing.md, ...theme.shadows.sm }]}>
               <View style={[styles.teamRow, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
                 <View>
                   <Text style={[typography.h3, { color: colors.text }]}>{team.name}</Text>
@@ -272,7 +280,7 @@ export default function TeamsManagementScreen() {
 
       {/* Create team modal */}
       <Modal visible={createModalOpen} transparent animationType="fade">
-        <Pressable style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setCreateModalOpen(false)}>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setCreateModalOpen(false)}>
           <Pressable style={[styles.modalBox, { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg }]} onPress={(e) => e.stopPropagation()}>
             <Text style={[typography.h2, { color: colors.text, marginBottom: spacing.md }]}>Create team</Text>
             {createError && (
@@ -302,7 +310,7 @@ export default function TeamsManagementScreen() {
 
       {/* Add member modal */}
       <Modal visible={addModalTeam !== null} transparent animationType="fade">
-        <Pressable style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={closeAddModal}>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={closeAddModal}>
           <Pressable style={[styles.modalBox, { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, maxHeight: '80%' }]} onPress={(e) => e.stopPropagation()}>
             <Text style={[typography.h2, { color: colors.text, marginBottom: spacing.xs }]}>Add member to {addModalTeam?.name}</Text>
             <Text style={[typography.bodySmall, { color: colors.textSecondary, marginBottom: spacing.sm }]}>Search by name. Only available members can be added.</Text>

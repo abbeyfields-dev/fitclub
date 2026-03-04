@@ -1,20 +1,25 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-/** Root stack: main app (tabs + workout + settings) */
+/** Root stack: main app (tabs + workout + settings + leaderboard + admin) */
 export type RootStackParamList = {
   MainTabs: undefined;
   WorkoutNew: undefined;
   Settings: undefined;
+  PastRounds: undefined;
+  RoundLeaderboard: { roundId: string; roundName: string };
+  Rounds: undefined;
+  Members: undefined;
+  TeamsManagement: undefined;
+  ClubInfo: undefined;
 };
 
-/** Main bottom tabs: Profile first (top/left), Challenges last (bottom/right) */
+/** Main bottom tabs: Home, Leaderboard, [Log FAB], Team, Profile */
 export type MainTabParamList = {
-  ProfileTab: undefined;
   HomeTab: undefined;
   LeaderboardTab: undefined;
   TeamTab: undefined;
-  ChallengesTab: undefined;
+  ProfileTab: undefined;
 };
 
 /** Home tab stack (Home, JoinClub, CreateClub live here for tab bar to stay visible) */

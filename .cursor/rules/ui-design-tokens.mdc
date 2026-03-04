@@ -1,0 +1,40 @@
+---
+description: FitClub UI must use design tokens only; no hex, no inline styles, spacing/radius from scale
+globs: frontend/**/*.tsx
+alwaysApply: false
+---
+
+# FitClub UI — Design token rules
+
+All new UI **must** follow these rules. No exceptions.
+
+## Colors
+
+- **Backgrounds**: Use `bg-neutral-50` or `bg-background` (Tailwind). In React Native: `backgroundColor: theme.colors.background` or `theme.colors.surface` from `useTheme()`.
+- **Text**: Use `text-neutral-900` or `text-primary-500` (Tailwind). In RN: `color: theme.colors.text`, `theme.colors.textSecondary`, or `theme.colors.primary`.
+- **Never** use raw hex values (`#...`), `rgb()`, `rgba()`, or named colors (`'white'`, `'black'`) in components. Only the design-system token file may define hex; components use theme tokens only.
+
+## Spacing
+
+- Use the **spacing scale only**. No arbitrary padding or margin (e.g. no `p-[13px]`, `margin: 17`, `padding: 20`).
+- Tailwind: `p-2`, `p-4`, `m-4`, `gap-2`, etc. from the theme scale (4, 8, 16, 24, 32…).
+- React Native: `theme.spacing.xs`, `theme.spacing.sm`, `theme.spacing.md`, `theme.spacing.lg`, `theme.spacing.xl` (and `xxs`, `xxl`, `xxxl` where defined). No magic numbers.
+
+## Border radius
+
+- Use **border radius tokens only** (e.g. `rounded-sm`, `rounded-md`, `rounded-lg` in Tailwind; `theme.radius.sm`, `theme.radius.md`, `theme.radius.lg` in RN). No arbitrary values like `borderRadius: 7`.
+
+## No inline styles
+
+- **Tailwind**: Prefer utility classes; avoid `style={{ ... }}` with raw values.
+- **React Native**: Prefer `StyleSheet.create` and theme-driven styles. When you need theme values, use a single dynamic object keyed by theme (e.g. `style={[styles.card, { backgroundColor: theme.colors.surface, padding: theme.spacing.md }]}`) — do not build ad-hoc style objects with hard-coded numbers or colors. Never put hex or magic numbers in inline style objects.
+
+## Summary
+
+| Do | Don't |
+|----|--------|
+| `bg-background`, `theme.colors.background` | `#ffffff`, `backgroundColor: '#fff'` |
+| `text-neutral-900`, `theme.colors.text` | `color: '#111'`, `'black'` |
+| `p-4`, `theme.spacing.md` | `padding: 20`, `p-[17px]` |
+| `rounded-lg`, `theme.radius.lg` | `borderRadius: 12`, `rounded-[7px]` |
+| StyleSheet + theme / Tailwind classes | Inline style objects with raw hex or arbitrary numbers |

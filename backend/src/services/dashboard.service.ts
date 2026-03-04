@@ -37,6 +37,13 @@ export class DashboardService {
         todayPoints: 0,
         dailyCap: 100,
         myTeamRank: null,
+        myTeamName: null,
+        myRoundPoints: 0,
+        myTeamTotal: 0,
+        workoutCount: 0,
+        weeklyActivity: [],
+        currentStreak: 0,
+        estimatedCalories: 0,
       };
     }
 
@@ -102,10 +109,68 @@ export class DashboardService {
       : [];
     const pointsMap = new Map(pointsByWorkout.map((p) => [p.workoutId, p.finalAwardedPoints]));
 
+    const myRoundPoints = userPointsMap.get(userId) ?? 0;
+    const myTeamTotal = myTeamId ? teamSums.find((t) => t.teamId === myTeamId)?.total ?? 0 : 0;
+
+    const workoutCount = await prisma.workout.count({
+      where: { userId, roundId: activeRound.id },
+    });
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+    const ledgerRows = await prisma.scoreLedger.findMany({
+      where: {
+        userId,
+        roundId: activeRound.id,
+        createdAt: { gte: sevenDaysAgo },
+      },
+      select: { createdAt: true, finalAwardedPoints: true },
+    });
+    const pointsByDay = new Map<string, number>();
+    for (const row of ledgerRows) {
+      const key = new Date(row.createdAt).toISOString().slice(0, 10);
+      pointsByDay.set(key, (pointsByDay.get(key) ?? 0) + row.finalAwardedPoints);
+    }
+    const weeklyActivity: Array<{ date: string; points: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const dateStr = d.toISOString().slice(0, 10);
+      weeklyActivity.push({ date: dateStr, points: Math.round(pointsByDay.get(dateStr) ?? 0) });
+    }
+
+    const workoutDays = await prisma.workout.findMany({
+      where: { userId, roundId: activeRound.id },
+      select: { loggedAt: true },
+    });
+    const daySet = new Set(
+      workoutDays.map((w) => new Date(w.loggedAt).toISOString().slice(0, 10))
+    );
+    let currentStreak = 0;
+    const checkDate = new Date();
+    for (;;) {
+      const key = checkDate.toISOString().slice(0, 10);
+      if (!daySet.has(key)) break;
+      currentStreak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    const userWorkoutsForCalories = await prisma.workout.findMany({
+      where: { userId, roundId: activeRound.id },
+      select: { durationMinutes: true },
+    });
+    const estimatedCalories = userWorkoutsForCalories.reduce(
+      (sum, w) => sum + (w.durationMinutes ?? 0) * 6,
+      0
+    );
+
     return {
       activeRound: {
         id: activeRound.id,
         name: activeRound.name,
+        startDate: activeRound.startDate,
         endDate: activeRound.endDate,
         daysLeft: Math.max(0, Math.ceil((new Date(activeRound.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
       },
@@ -123,6 +188,12 @@ export class DashboardService {
       dailyCap,
       myTeamRank,
       myTeamName: myMembership?.Team.name ?? null,
+      myRoundPoints: Math.round(myRoundPoints),
+      myTeamTotal: Math.round(myTeamTotal),
+      workoutCount,
+      weeklyActivity,
+      currentStreak,
+      estimatedCalories,
     };
   }
 }

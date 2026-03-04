@@ -34,8 +34,8 @@ export class TeamService {
 
   /**
    * Add a user to a team. Caller must be club member.
+   * Enforces: user can be in only one team per club per round (see schema TeamMembership).
    * Validates: user in same club, round is active, user not already in a team for this round.
-   * Returns 400 with "User is already assigned to a team in this round." when already assigned.
    */
   static async addMemberToTeam(roundId: string, teamId: string, userIdToAdd: string, callerUserId: string) {
     const round = await prisma.round.findUnique({ where: { id: roundId } });
@@ -56,11 +56,14 @@ export class TeamService {
       throw new ValidationError('User is not a member of this club.');
     }
 
-    const existing = await prisma.teamMembership.findUnique({
+    // One team per user per round (user may be in different teams in other rounds).
+    const existingInRound = await prisma.teamMembership.findUnique({
       where: { userId_roundId: { userId: userIdToAdd, roundId } },
     });
-    if (existing) {
-      throw new ValidationError('User is already assigned to a team in this round.');
+    if (existingInRound) {
+      throw new ValidationError(
+        'This user is already on a team for this round. A user can only be in one team per round.'
+      );
     }
 
     const membership = await prisma.teamMembership.create({

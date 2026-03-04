@@ -9,33 +9,31 @@ import {
 } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TAB_ICONS: Record<string, { filled: keyof typeof Ionicons.glyphMap; outline: keyof typeof Ionicons.glyphMap }> = {
-  ProfileTab: { filled: 'person', outline: 'person-outline' },
   HomeTab: { filled: 'home', outline: 'home-outline' },
   LeaderboardTab: { filled: 'trophy', outline: 'trophy-outline' },
   TeamTab: { filled: 'people', outline: 'people-outline' },
-  ChallengesTab: { filled: 'medal', outline: 'medal-outline' },
+  ProfileTab: { filled: 'person', outline: 'person-outline' },
 };
 
 const TAB_LABELS: Record<string, string> = {
-  ProfileTab: 'Profile',
   HomeTab: 'Home',
   LeaderboardTab: 'Leaderboard',
   TeamTab: 'Team',
-  ChallengesTab: 'Challenges',
+  ProfileTab: 'Profile',
 };
 
-const FAB_SIZE = 52;
-const FAB_FLOAT_OFFSET = 18;
-const PRESS_SCALE = 0.88;
+const FAB_SIZE = 56;
+const FAB_FLOAT_OFFSET = 20;
+const PRESS_SCALE = 0.92;
 
 export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { colors, spacing } = theme;
+  const { colors, spacing: s, radius: r } = theme;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const onFABPressIn = () => {
@@ -61,9 +59,9 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
   };
 
   const tabBarHeight = 64 + insets.bottom;
-  const visibleRoutes = state.routes.filter((r) => r.name !== 'ProfileTab');
+  const visibleRoutes = state.routes;
   const leftTabs = visibleRoutes.slice(0, 2);
-  const rightTabs = visibleRoutes.slice(2, visibleRoutes.length);
+  const rightTabs = visibleRoutes.slice(2, 4);
 
   const renderTab = (route: (typeof state.routes)[0], _index: number) => {
     const isFocused = state.routes[state.index].name === route.name;
@@ -91,18 +89,28 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
         accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
         onPress={onPress}
         style={styles.tabTouch}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
-        <View style={[styles.tabInner, isFocused && { backgroundColor: colors.primaryMuted }]}>
+        <View
+          style={[
+            styles.tabInner,
+            {
+              backgroundColor: isFocused ? colors.primary : 'transparent',
+              borderRadius: r.sm,
+              paddingVertical: 6,
+              paddingHorizontal: 10,
+            },
+          ]}
+        >
           <View style={styles.iconWrap}>
             <Ionicons
               name={isFocused ? icons.filled : icons.outline}
-              size={24}
-              color={isFocused ? colors.primary : colors.textMuted}
+              size={22}
+              color={isFocused ? colors.heroText : colors.textSecondary}
             />
             {badge != null && (
               <View style={[styles.badge, { backgroundColor: colors.error }]}>
-                <Text style={styles.badgeText} numberOfLines={1}>
+                <Text style={[styles.badgeText, { color: colors.textInverse }]} numberOfLines={1}>
                   {typeof badge === 'number' && badge > 99 ? '99+' : badge}
                 </Text>
               </View>
@@ -111,7 +119,10 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
           <Text
             style={[
               styles.label,
-              { color: isFocused ? colors.primary : colors.textMuted },
+              {
+                color: isFocused ? colors.heroText : colors.textSecondary,
+                fontWeight: isFocused ? '800' : '600',
+              },
             ]}
             numberOfLines={1}
           >
@@ -127,9 +138,11 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
       style={[
         styles.container,
         {
-          backgroundColor: colors.surface,
+          backgroundColor: colors.card,
           borderTopColor: colors.border,
+          borderTopWidth: 1,
           paddingBottom: insets.bottom,
+          paddingTop: 8,
           height: tabBarHeight,
         },
       ]}
@@ -152,19 +165,22 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
                   width: FAB_SIZE,
                   height: FAB_SIZE,
                   borderRadius: FAB_SIZE / 2,
-                  backgroundColor: colors.accent,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.22,
-                  shadowRadius: 8,
+                  backgroundColor: colors.primary,
+                  borderWidth: 3,
+                  borderColor: colors.primaryHover ?? colors.primary,
+                  shadowColor: colors.shadowColor,
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 10,
                   transform: [{ scale: scaleAnim }],
-                  ...(Platform.OS === 'android' ? { elevation: 6 } : {}),
+                  ...(Platform.OS === 'android' ? { elevation: 8 } : {}),
                 },
               ]}
             >
-              <Ionicons name="add" size={28} color={colors.text} />
+              <Ionicons name="add" size={30} color={colors.heroText} />
             </Animated.View>
           </TouchableOpacity>
+          <Text style={[styles.fabLabel, { color: colors.textSecondary, fontWeight: '700' }]}>Log</Text>
         </View>
 
         <View style={styles.half}>{rightTabs.map((r, i) => renderTab(r, i + 2))}</View>
@@ -176,8 +192,6 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingTop: 8,
   },
   row: {
     flex: 1,
@@ -193,7 +207,7 @@ const styles = StyleSheet.create({
   },
   fabSlot: {
     flex: 0,
-    minWidth: 72,
+    minWidth: 76,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -205,6 +219,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  fabLabel: {
+    fontSize: 10,
+    marginTop: 2,
+  },
   tabTouch: {
     flex: 1,
     alignItems: 'center',
@@ -213,9 +231,6 @@ const styles = StyleSheet.create({
   tabInner: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
   },
   iconWrap: {
     position: 'relative',
@@ -232,13 +247,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   badgeText: {
-    color: '#fff',
     fontSize: 10,
     fontWeight: '700',
   },
   label: {
     fontSize: 11,
-    fontWeight: '600',
     marginTop: 2,
   },
 });
