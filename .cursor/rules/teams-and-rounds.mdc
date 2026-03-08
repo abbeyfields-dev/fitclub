@@ -1,0 +1,20 @@
+---
+description: FitClub team membership and round creation rules — who can add/remove members; copy teams when creating from existing round
+globs: backend/**/*.ts, frontend/**/*.tsx
+alwaysApply: false
+---
+
+# Teams and rounds — context rules
+
+## Team membership: add / remove
+
+- **Club admins** can add or remove any member from any team in the club’s rounds.
+- **Team leaders** (club role `team_lead`) can add or remove members **only for their own team** in the active round.
+- Backend: `TeamService.addMemberToTeam` and `TeamService.removeMemberFromTeam` enforce this (admin, or team_lead in same team). Any new endpoints that change team membership must use the same checks.
+
+## Create round from existing (copy teams)
+
+- When creating a new round with **sourceRoundId** and **copyTeams: true**:
+  - Create new **Round** and associate new **Team** rows (same names as source, linked to the new round).
+  - Copy **TeamMembership**: for each source team, create memberships on the new team for the same users, preserving **isLeader**. Only include users who are **current club members** (skip users who left the club).
+- Teams and memberships are associated to the new round object; team composition can differ between rounds (members can be added/removed by admins and team leads after creation).

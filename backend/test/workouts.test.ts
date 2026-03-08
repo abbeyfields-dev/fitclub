@@ -44,12 +44,33 @@ describe('Workouts', () => {
   });
 
   describe('POST /api/rounds/:roundId/workouts', () => {
+    let gymWorkoutMasterId: number;
+    let runWorkoutMasterId: number;
+
+    beforeAll(async () => {
+      const res = await request(app)
+        .get('/api/workouts/workout-master')
+        .set(authHeader(token));
+      expect(res.status).toBe(200);
+      const list = res.body.data as { id: number; workoutType: string }[];
+      gymWorkoutMasterId = list.find((a: { workoutType: string }) => a.workoutType === 'Gym Workout')?.id ?? 0;
+      runWorkoutMasterId = list.find((a: { workoutType: string }) => a.workoutType === 'Run')?.id ?? 0;
+    });
+
+    it('rejects when workoutMasterId is missing', async () => {
+      const res = await request(app)
+        .post(`/api/rounds/${roundId}/workouts`)
+        .set(authHeader(token))
+        .send({ durationMinutes: 30 });
+      expect(res.status).toBe(400);
+    });
+
     it('logs a workout with duration', async () => {
       const res = await request(app)
         .post(`/api/rounds/${roundId}/workouts`)
         .set(authHeader(token))
         .send({
-          activityType: 'Gym Workout',
+          workoutMasterId: gymWorkoutMasterId,
           durationMinutes: 30,
         });
       expect(res.status).toBe(201);
@@ -63,19 +84,20 @@ describe('Workouts', () => {
         .post(`/api/rounds/${roundId}/workouts`)
         .set(authHeader(token))
         .send({
-          activityType: 'Run',
+          workoutMasterId: runWorkoutMasterId,
+          durationMinutes: 30,
           distanceKm: 5,
         });
       expect(res.status).toBe(201);
       expect(res.body.data.points).toBeGreaterThan(0);
     });
 
-    it('rejects unknown activity type', async () => {
+    it('rejects invalid workoutMasterId', async () => {
       const res = await request(app)
         .post(`/api/rounds/${roundId}/workouts`)
         .set(authHeader(token))
         .send({
-          activityType: 'UnknownActivityXYZ',
+          workoutMasterId: 999999,
           durationMinutes: 10,
         });
       expect(res.status).toBe(400);
@@ -85,7 +107,7 @@ describe('Workouts', () => {
       const res = await request(app)
         .post(`/api/rounds/${roundId}/workouts`)
         .set(authHeader(token))
-        .send({ activityType: 'Run' });
+        .send({ workoutMasterId: runWorkoutMasterId });
       expect(res.status).toBe(400);
     });
   });

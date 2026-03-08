@@ -84,10 +84,8 @@ export function LeaderboardPodium({
               ]}
             >
               <View style={[styles.headerRow, { flexDirection: 'row', alignItems: 'center', gap: s.xxs, marginBottom: s.xs }]}>
-                <Text style={[typography.section, { color: accent(rank), fontWeight: '800' }]}>
-                  {RANK_MEDAL[rank]}
-                </Text>
-                <Text style={[typography.section, { color: colors.textPrimary, fontWeight: '800' }]}>
+                <Text style={{ fontSize: 16 }}>{RANK_MEDAL[rank]}</Text>
+                <Text style={[typography.caption, { color: colors.textPrimary, fontWeight: '800' }]}>
                   #{rank}
                 </Text>
                 {entry.rankChange != null && entry.rankChange !== 0 && (
@@ -106,17 +104,17 @@ export function LeaderboardPodium({
                 )}
               </View>
               <Text
-                style={[typography.label, { color: colors.textPrimary, fontWeight: '700' }]}
+                style={[typography.bodySmall, { color: colors.textPrimary, fontWeight: '700', lineHeight: 18 }]}
                 numberOfLines={2}
               >
                 {entry.name}
               </Text>
-              <Text style={[typography.label, { color: colors.energy, fontWeight: '800', marginTop: s.xxs }]}>
+              <Text style={[typography.caption, { color: colors.energy, fontWeight: '800', marginTop: s.xxs }]}>
                 {entry.points.toLocaleString()} pts
               </Text>
               {gapLabel ? (
                 <Text
-                  style={[typography.caption, { color: colors.textSecondary, marginTop: s.xxs, fontWeight: '600' }]}
+                  style={[typography.caption, { color: colors.textSecondary, marginTop: s.xxs, fontWeight: '600', fontSize: 11 }]}
                   numberOfLines={1}
                 >
                   {gapLabel}

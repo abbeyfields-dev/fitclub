@@ -39,7 +39,18 @@ export const roundService = {
   getById(roundId: string) {
     return request<{ success: boolean; data: Round & { Teams?: Array<{ id: string; name: string; Memberships: unknown[] }> } }>(`/rounds/${roundId}`);
   },
-  create(clubId: string, body: { name: string; startDate: string; endDate: string; scoringConfig: object; teamSize?: number }) {
+  create(
+    clubId: string,
+    body: {
+      name: string;
+      startDate: string;
+      endDate: string;
+      scoringConfig: object;
+      teamSize?: number;
+      sourceRoundId?: string;
+      copyTeams?: boolean;
+    }
+  ) {
     return request<{ success: boolean; data: Round }>(`/clubs/${clubId}/rounds`, {
       method: 'POST',
       body: JSON.stringify(body),

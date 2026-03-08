@@ -21,7 +21,7 @@ export async function createRoundStartedNotifications(clubId: string, roundName:
     where: { clubId },
     select: { userId: true },
   });
-  const title = 'Challenge is live';
+  const title = 'Challenge round is live';
   const body = `🔥 ${roundName} is live!`;
   await prisma.notification.createMany({
     data: members.map((m) => ({
@@ -35,13 +35,13 @@ export async function createRoundStartedNotifications(clubId: string, roundName:
 }
 
 /**
- * Notify all club members that a challenge (round) is live.
- * Sends push notification "🔥 [Challenge Name] is live!" to every member with a registered push token.
+ * Notify all club members that a challenge round is live.
+ * Sends push notification "🔥 [Round name] is live!" to every member with a registered push token.
  * No-op if EXPO_ACCESS_TOKEN is not set or no tokens exist.
  */
 export async function notifyChallengeLive(clubId: string, challengeName: string): Promise<void> {
   if (!EXPO_ACCESS_TOKEN) {
-    console.info('[notification] EXPO_ACCESS_TOKEN not set; skipping challenge live push');
+    console.info('[notification] EXPO_ACCESS_TOKEN not set; skipping challenge round live push');
     return;
   }
 
@@ -72,7 +72,7 @@ export async function notifyChallengeLive(clubId: string, challengeName: string)
       return;
     }
 
-    const title = 'Challenge is live';
+    const title = 'Challenge round is live';
     const body = `🔥 ${challengeName} is live!`;
     const messages = validTokens.map((to) => ({
       to,
@@ -92,9 +92,9 @@ export async function notifyChallengeLive(clubId: string, challengeName: string)
         }
       }
     }
-    console.info('[notification] Challenge live push sent', clubId, validTokens.length);
+    console.info('[notification] Challenge round live push sent', clubId, validTokens.length);
   } catch (e) {
-    console.error('[notification] Failed to send challenge live push', clubId, e instanceof Error ? e.message : e);
+    console.error('[notification] Failed to send challenge round live push', clubId, e instanceof Error ? e.message : e);
     // Do not throw; activation already succeeded. Push is best-effort.
   }
 }

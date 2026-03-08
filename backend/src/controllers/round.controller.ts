@@ -18,31 +18,50 @@ export class RoundController {
       return;
     }
     const body = req.body || {};
+    const sourceRoundId = typeof body.sourceRoundId === 'string' ? body.sourceRoundId.trim() : undefined;
+    const copyTeams = body.copyTeams === true;
+
     const name = (body.name || '').trim();
-    if (!name) {
-      res.status(400).json({ success: false, error: 'Round name is required.' } as ApiResponse);
-      return;
+    const startDate = body.startDate ? new Date(body.startDate) : undefined;
+    const endDate = body.endDate ? new Date(body.endDate) : undefined;
+    const scoringConfig = body.scoringConfig && typeof body.scoringConfig === 'object' ? body.scoringConfig : undefined;
+
+    if (!sourceRoundId) {
+      if (!name) {
+        res.status(400).json({ success: false, error: 'Round name is required.' } as ApiResponse);
+        return;
+      }
+      if (!startDate || !endDate || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        res.status(400).json({ success: false, error: 'Valid startDate and endDate are required.' } as ApiResponse);
+        return;
+      }
+      if (endDate <= startDate) {
+        res.status(400).json({ success: false, error: 'endDate must be after startDate.' } as ApiResponse);
+        return;
+      }
+      if (!scoringConfig) {
+        res.status(400).json({ success: false, error: 'scoringConfig object is required.' } as ApiResponse);
+        return;
+      }
+    } else if (startDate !== undefined && endDate !== undefined) {
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        res.status(400).json({ success: false, error: 'Invalid startDate or endDate.' } as ApiResponse);
+        return;
+      }
+      if (endDate <= startDate) {
+        res.status(400).json({ success: false, error: 'endDate must be after startDate.' } as ApiResponse);
+        return;
+      }
     }
-    const startDate = body.startDate ? new Date(body.startDate) : null;
-    const endDate = body.endDate ? new Date(body.endDate) : null;
-    if (!startDate || !endDate || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      res.status(400).json({ success: false, error: 'Valid startDate and endDate are required.' } as ApiResponse);
-      return;
-    }
-    if (endDate <= startDate) {
-      res.status(400).json({ success: false, error: 'endDate must be after startDate.' } as ApiResponse);
-      return;
-    }
-    if (!body.scoringConfig || typeof body.scoringConfig !== 'object') {
-      res.status(400).json({ success: false, error: 'scoringConfig object is required.' } as ApiResponse);
-      return;
-    }
+
     const round = await RoundService.createRound(clubId, userId, {
-      name,
+      name: name || undefined,
       startDate,
       endDate,
-      scoringConfig: body.scoringConfig,
+      scoringConfig,
       teamSize: body.teamSize != null ? Number(body.teamSize) : undefined,
+      sourceRoundId,
+      copyTeams,
     });
     res.status(201).json({ success: true, data: round, message: 'Round created.' } as ApiResponse);
   }
@@ -142,10 +161,15 @@ export class RoundController {
       return;
     }
     const body = req.body || {};
+    if (body.workoutMasterId == null) {
+      res.status(400).json({ success: false, error: 'workoutMasterId is required.' } as ApiResponse);
+      return;
+    }
     const result = await logWorkout(roundId, userId, {
-      activityType: body.activityType,
+      workoutMasterId: Number(body.workoutMasterId),
       durationMinutes: body.durationMinutes,
       distanceKm: body.distanceKm,
+      heartRate: body.heartRate,
       proofUrl: body.proofUrl,
       note: body.note,
       loggedAt: body.loggedAt,

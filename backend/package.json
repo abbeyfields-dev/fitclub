@@ -13,6 +13,11 @@
     "prisma:deploy": "prisma migrate deploy",
     "seed": "ts-node prisma/seed.ts",
     "seed:mock": "ts-node prisma/seed-mock-data.ts",
+    "seed:workout-met": "ts-node scripts/seed-workout-master-met.ts",
+    "seed:mock-workouts": "ts-node scripts/seed-mock-workouts.ts",
+    "seed:mock-workouts-bulk": "ts-node scripts/seed-mock-workouts-bulk.ts",
+    "backfill:score-ledger-stats": "ts-node scripts/backfill-score-ledger-and-stats.ts",
+    "generate:mock-workouts": "ts-node scripts/generate-mock-workouts.ts",
     "test": "NODE_ENV=test jest",
     "test:watch": "NODE_ENV=test jest --watch",
     "test:coverage": "NODE_ENV=test jest --coverage"

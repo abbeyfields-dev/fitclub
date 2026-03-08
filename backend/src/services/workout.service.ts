@@ -19,9 +19,11 @@ function calculateRawPoints(durationMinutes: number | null, distanceKm: number |
 }
 
 export type LogWorkoutInput = {
-  activityType: string;
+  /** Required. Activity is resolved from WorkoutMaster; activityType on Workout is set from master.workoutType. */
+  workoutMasterId: number;
   durationMinutes?: number | null;
   distanceKm?: number | null;
+  heartRate?: number | null;
   proofUrl?: string | null;
   note?: string | null;
   loggedAt?: string; // ISO
@@ -31,6 +33,7 @@ export type WorkoutActivityOption = {
   id: number;
   workoutType: string;
   genericWorkoutType: string;
+  met: number | null;
 };
 
 export type GenericWorkoutOption = {
@@ -76,12 +79,14 @@ export async function listWorkoutMaster(): Promise<WorkoutActivityOption[]> {
       id: true,
       workoutType: true,
       genericWorkoutType: true,
+      met: true,
     },
   });
   return rows.map((r) => ({
     id: r.id,
     workoutType: r.workoutType,
     genericWorkoutType: r.genericWorkoutType,
+    met: r.met,
   }));
 }
 
@@ -98,19 +103,36 @@ export async function logWorkout(roundId: string, userId: string, input: LogWork
   if (round.status !== 'active') throw new ValidationError('Workouts can only be logged for an active round.');
   await ClubService.ensureMember(userId, round.clubId);
 
-  const activityType = (input.activityType || '').trim();
-  if (!activityType) throw new ValidationError('Activity type is required.');
+  if (input.workoutMasterId == null || typeof input.workoutMasterId !== 'number') {
+    throw new ValidationError('workoutMasterId is required. Select an activity from the list.');
+  }
 
   const workoutMaster = await prisma.workoutMaster.findUnique({
-    where: { workoutType: activityType },
-    select: { id: true },
+    where: { id: input.workoutMasterId },
+    select: { id: true, workoutType: true, met: true },
   });
-  if (!workoutMaster) throw new ValidationError('Unknown workout type. Choose an activity from the list.');
+  if (!workoutMaster) throw new ValidationError('Invalid workout. Choose an activity from the list.');
 
+  const activityType = workoutMaster.workoutType;
   const durationMinutes = input.durationMinutes != null ? Number(input.durationMinutes) : null;
   const distanceKm = input.distanceKm != null ? Number(input.distanceKm) : null;
+  if (durationMinutes == null || durationMinutes <= 0) {
+    throw new ValidationError('Duration (minutes) is required and must be greater than 0.');
+  }
   const rawPoints = calculateRawPoints(durationMinutes, distanceKm);
   if (rawPoints <= 0) throw new ValidationError('Provide duration (minutes) or distance (km) to earn points.');
+
+  const heartRate = input.heartRate != null ? Math.round(Number(input.heartRate)) : null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { weight: true },
+  });
+  const weightKg = user?.weight != null && user.weight > 0 ? Number(user.weight) : null;
+  const caloriesBurned =
+    workoutMaster.met != null && weightKg != null && durationMinutes > 0
+      ? Math.round(workoutMaster.met * weightKg * durationMinutes * 0.0175 * 10) / 10
+      : null;
 
   const loggedAt = input.loggedAt ? new Date(input.loggedAt) : new Date();
   if (isNaN(loggedAt.getTime())) throw new ValidationError('Invalid loggedAt date.');
@@ -141,7 +163,7 @@ export async function logWorkout(roundId: string, userId: string, input: LogWork
     source: 'workout',
   });
 
-  const estimatedCalories = (durationMinutes ?? 0) * 6; // same as dashboard
+  const estimatedCalories = caloriesBurned ?? (durationMinutes ?? 0) * 6; // use stored calories or fallback for dashboard
 
   const result = await prisma.$transaction(async (tx) => {
     const membership = await tx.teamMembership.findUnique({
@@ -156,8 +178,10 @@ export async function logWorkout(roundId: string, userId: string, input: LogWork
         roundId,
         activityType,
         workoutMasterId: workoutMaster.id,
-        durationMinutes: durationMinutes ?? undefined,
+        durationMinutes,
         distanceKm: distanceKm ?? undefined,
+        heartRate: heartRate ?? undefined,
+        caloriesBurned: caloriesBurned ?? undefined,
         proofUrl: input.proofUrl ?? undefined,
         notes: input.note ? String(input.note).trim() || undefined : undefined,
         loggedAt,

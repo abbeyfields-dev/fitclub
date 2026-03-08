@@ -143,14 +143,14 @@ export default function TeamScreen() {
         const res = await teamService.getMyTeam(active.id);
         if (loadingForClubIdRef.current !== clubId) return;
         const d = res.data;
-        const members: (TeamMember & { userId?: string; isTeamLead?: boolean })[] = (d.members || []).map((m: any, i: number) => ({
+        const members: (TeamMember & { userId?: string; isTeamLead?: boolean })[] = (d.members || []).map((m: any) => ({
           id: m.id,
           userId: m.userId,
           name: m.name,
           points: m.points,
           contributionPercent: m.contributionPercent,
           isCurrentUser: m.isCurrentUser,
-          isTeamLead: i === 0,
+          isTeamLead: m.isTeamLead === true,
         }));
         setTeam({
           id: d.id,
@@ -332,7 +332,7 @@ export default function TeamScreen() {
   if (!roundInfo) {
     return (
       <View style={[styles.container, styles.centered, { backgroundColor: colors.background, padding: spacing.md }]}>
-        <Text style={[typography.body, { color: colors.textMuted, textAlign: 'center' }]}>No active round. Check back when a challenge is running.</Text>
+        <Text style={[typography.body, { color: colors.textMuted, textAlign: 'center' }]}>No active round. Check back when a challenge round is running.</Text>
       </View>
     );
   }

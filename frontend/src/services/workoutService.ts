@@ -26,10 +26,19 @@ export type WorkoutActivity = {
   maxMetLimit: number | null;
 };
 
+/** WorkoutMaster option for log screen (specific activity with MET). */
+export type WorkoutMasterOption = {
+  id: number;
+  workoutType: string;
+  genericWorkoutType: string;
+  met: number | null;
+};
+
 export type LogWorkoutPayload = {
-  activityType: string;
-  durationMinutes?: number | null;
+  workoutMasterId: number;
+  durationMinutes: number;
   distanceKm?: number | null;
+  heartRate?: number | null;
   proofUrl?: string | null;
   note?: string | null;
   loggedAt?: string; // ISO
@@ -41,15 +50,21 @@ export const workoutService = {
     return request<{ success: boolean; data: WorkoutActivity[] }>('/workouts/activities');
   },
 
+  /** List WorkoutMaster (all specific activities with MET) for autocomplete picker. */
+  listWorkoutMaster() {
+    return request<{ success: boolean; data: WorkoutMasterOption[] }>('/workouts/workout-master');
+  },
+
   /** Log a workout for the active round. Returns awarded points. */
   async logWorkout(roundId: string, payload: LogWorkoutPayload): Promise<{ success: boolean; data?: { points: number }; error?: string }> {
     try {
       const res = await request<{ success: boolean; data: { id: string; points: number }; message?: string }>(`/rounds/${roundId}/workouts`, {
         method: 'POST',
         body: JSON.stringify({
-          activityType: payload.activityType,
-          durationMinutes: payload.durationMinutes ?? undefined,
+          workoutMasterId: payload.workoutMasterId,
+          durationMinutes: payload.durationMinutes,
           distanceKm: payload.distanceKm ?? undefined,
+          heartRate: payload.heartRate ?? undefined,
           proofUrl: payload.proofUrl ?? undefined,
           note: payload.note ?? undefined,
           loggedAt: payload.loggedAt ?? new Date().toISOString(),

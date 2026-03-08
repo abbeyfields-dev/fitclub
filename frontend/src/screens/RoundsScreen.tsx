@@ -116,7 +116,7 @@ export default function RoundsScreen() {
   if (!selectedClub) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, padding: spacing.md, paddingTop: spacing.lg, justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={[typography.body, { color: colors.textSecondary }]}>Select a club to manage challenges.</Text>
+        <Text style={[typography.body, { color: colors.textSecondary }]}>Select a club to manage challenge rounds.</Text>
       </View>
     );
   }
@@ -124,7 +124,7 @@ export default function RoundsScreen() {
   if (!isAdmin) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, padding: spacing.md, paddingTop: spacing.lg, justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={[typography.body, { color: colors.textSecondary }]}>Only admins can manage challenges.</Text>
+        <Text style={[typography.body, { color: colors.textSecondary }]}>Only admins can manage challenge rounds.</Text>
       </View>
     );
   }
@@ -141,7 +141,7 @@ export default function RoundsScreen() {
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
           )}
-          <Text style={[typography.h3, { color: colors.text, fontWeight: '800', flex: 1 }]} numberOfLines={1}>Challenges</Text>
+          <Text style={[typography.h3, { color: colors.text, fontWeight: '800', flex: 1 }]} numberOfLines={1}>Challenge rounds</Text>
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: colors.primary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, flexShrink: 0 }]}
             onPress={openCreate}
@@ -205,7 +205,7 @@ export default function RoundsScreen() {
         {rounds.length === 0 && !loading && (
           <View style={[styles.empty, { padding: spacing.xl }]}>
             <Ionicons name="calendar-outline" size={40} color={colors.textMuted} />
-            <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.sm }]}>No challenges yet. Create one to start.</Text>
+            <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.sm }]}>No challenge rounds yet. Create one to start.</Text>
           </View>
         )}
       </ScrollView>

@@ -7,7 +7,7 @@ export type TeamMember = {
   /** 0–100, share of team total */
   contributionPercent: number;
   isCurrentUser?: boolean;
-  /** First member in list is Team Lead for display */
+  /** From TeamMembership.isLeader; only one member per team should be lead. */
   isTeamLead?: boolean;
 };
 

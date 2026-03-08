@@ -363,6 +363,15 @@ export default function LeaderboardScreen() {
             Pts
           </Text>
         </View>
+        {rest.length === 0 && data.length > 0 ? (
+          <View style={{ paddingVertical: s.lg, paddingHorizontal: s.sm, alignItems: 'center' }}>
+            <Text style={[typography.bodySmall, { color: colors.textSecondary, textAlign: 'center' }]}>
+              {data.length <= 3
+                ? 'All entries are shown in the podium above.'
+                : 'No other entries.'}
+            </Text>
+          </View>
+        ) : null}
         {rest.map((item) => (
           <View
             key={item.id}

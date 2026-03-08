@@ -64,6 +64,10 @@ export default function RoundConfigScreen() {
   const [scoring, setScoring] = useState<RoundScoringConfig>({ ...DEFAULT_SCORING_CONFIG });
   const [activityPickerIndex, setActivityPickerIndex] = useState<number | null>(null);
 
+  const [sourceRounds, setSourceRounds] = useState<Round[]>([]);
+  const [sourceRoundId, setSourceRoundId] = useState<string | null>(null);
+  const [copyTeams, setCopyTeams] = useState(false);
+
   useEffect(() => {
     if (!isCreate && roundId) {
       let cancelled = false;
@@ -90,6 +94,31 @@ export default function RoundConfigScreen() {
       setLoading(false);
     }
   }, [isCreate, roundId]);
+
+  useEffect(() => {
+    if (!isCreate || !clubId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await roundService.listByClub(clubId);
+        const list = (res.data || []).filter((r) => r.status === 'draft' || r.status === 'completed');
+        if (!cancelled) setSourceRounds(list);
+      } catch {
+        if (!cancelled) setSourceRounds([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCreate, clubId]);
+
+  const applySourceRound = useCallback((round: Round) => {
+    setName(round.name);
+    setStartDate(round.startDate.slice(0, 10));
+    setEndDate(round.endDate.slice(0, 10));
+    setTeamSize(round.teamSize != null ? String(round.teamSize) : '');
+    setScoring(parseScoringConfig(round.scoringConfig as Record<string, unknown>));
+  }, []);
 
   const updateScoring = useCallback((patch: Partial<RoundScoringConfig>) => {
     setScoring((prev) => ({ ...prev, ...patch }));
@@ -162,7 +191,7 @@ export default function RoundConfigScreen() {
     setError(null);
     setSaving(true);
     try {
-      const body = {
+      const body: Parameters<typeof roundService.create>[1] = {
         name: nameTrim,
         startDate: start.toISOString(),
         endDate: end.toISOString(),
@@ -175,6 +204,10 @@ export default function RoundConfigScreen() {
         },
       };
       if (isCreate && clubId) {
+        if (sourceRoundId) {
+          body.sourceRoundId = sourceRoundId;
+          body.copyTeams = copyTeams;
+        }
         await roundService.create(clubId, body);
         navigation.goBack();
       } else if (!isCreate && roundId) {
@@ -186,7 +219,7 @@ export default function RoundConfigScreen() {
     } finally {
       setSaving(false);
     }
-  }, [name, startDate, endDate, teamSize, scoring, isCreate, clubId, roundId, navigation]);
+  }, [name, startDate, endDate, teamSize, scoring, isCreate, clubId, roundId, sourceRoundId, copyTeams, navigation]);
 
   if (loading) {
     return (
@@ -208,7 +241,7 @@ export default function RoundConfigScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[typography.h3, { color: colors.text, fontWeight: '800' }]} numberOfLines={1}>
-          {isCreate ? 'New challenge' : 'Edit challenge'}
+          {isCreate ? 'New challenge round' : 'Edit challenge round'}
         </Text>
         <View style={styles.backBtn} />
       </View>
@@ -224,6 +257,75 @@ export default function RoundConfigScreen() {
             <Text style={[typography.bodySmall, { color: colors.error }]}>{error}</Text>
           </View>
         ) : null}
+
+        {/* Create from existing round */}
+        {isCreate && sourceRounds.length > 0 && (
+          <Card style={[styles.section, { marginBottom: spacing.md }]}>
+            <Text style={[typography.label, { color: colors.textSecondary, marginBottom: spacing.sm }]}>CREATE FROM EXISTING</Text>
+            <Text style={[typography.caption, { color: colors.textSecondary, marginBottom: spacing.sm }]}>
+              Prefill from a past or draft round and optionally copy team names.
+            </Text>
+            <View style={{ marginBottom: spacing.sm }}>
+              {sourceRounds.map((r) => (
+                <TouchableOpacity
+                  key={r.id}
+                  onPress={() => {
+                    if (sourceRoundId === r.id) {
+                      setSourceRoundId(null);
+                    } else {
+                      setSourceRoundId(r.id);
+                      applySourceRound(r);
+                    }
+                  }}
+                  style={[
+                    styles.sourceRow,
+                    {
+                      padding: spacing.sm,
+                      borderRadius: radius.sm,
+                      marginBottom: spacing.xs,
+                      backgroundColor: sourceRoundId === r.id ? colors.primaryMuted : colors.borderLight,
+                      borderWidth: 1,
+                      borderColor: sourceRoundId === r.id ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[typography.body, { color: colors.text, fontWeight: '600' }]} numberOfLines={1}>
+                    {r.name}
+                  </Text>
+                  <Text style={[typography.caption, { color: colors.textSecondary }]}>
+                    {r.status} · {r.startDate.slice(0, 10)} – {r.endDate.slice(0, 10)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {sourceRoundId ? (
+              <TouchableOpacity
+                onPress={() => setCopyTeams((prev) => !prev)}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs }}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    {
+                      width: 22,
+                      height: 22,
+                      borderRadius: radius.sm,
+                      borderWidth: 2,
+                      borderColor: copyTeams ? colors.primary : colors.border,
+                      backgroundColor: copyTeams ? colors.primary : colors.transparent,
+                      marginRight: spacing.sm,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    },
+                  ]}
+                >
+                  {copyTeams && <Ionicons name="checkmark" size={14} color={colors.textInverse} />}
+                </View>
+                <Text style={[typography.body, { color: colors.text }]}>Copy teams from selected round</Text>
+              </TouchableOpacity>
+            ) : null}
+          </Card>
+        )}
 
         {/* Basics */}
         <Card style={[styles.section, { marginBottom: spacing.md }]}>
@@ -377,7 +479,7 @@ export default function RoundConfigScreen() {
           </Card>
         )}
 
-        <Button title={saving ? 'Saving…' : isCreate ? 'Create challenge' : 'Save changes'} onPress={submit} loading={saving} fullWidth />
+        <Button title={saving ? 'Saving…' : isCreate ? 'Create challenge round' : 'Save changes'} onPress={submit} loading={saving} fullWidth />
       </ScrollView>
 
       <Modal visible={activityPickerIndex !== null} transparent animationType="fade">
@@ -434,6 +536,8 @@ const styles = StyleSheet.create({
   addRuleBtn: { flexDirection: 'row', alignItems: 'center' },
   ruleCard: { borderWidth: 1 },
   ruleHeader: {},
+  sourceRow: {},
+  checkbox: {},
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalBox: { width: '100%', maxWidth: 320 },
 });

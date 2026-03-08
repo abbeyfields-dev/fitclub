@@ -12,6 +12,7 @@ model User {
   email        String   @unique
   passwordHash String
   displayName  String
+  weight       Float?   // kg; used for caloriesBurned = MET × weight × durationMinutes × 0.0175
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -147,10 +148,12 @@ model Workout {
   id               String   @id @default(uuid())
   userId           String
   roundId          String
-  activityType     String
+  activityType     String   // Denormalized from WorkoutMaster.workoutType for display; workoutMasterId is source of truth
   workoutMasterId Int?
   durationMinutes  Int?
   distanceKm       Float?
+  heartRate        Int?
+  caloriesBurned   Float?   // MET (from master) × user weight (kg) × durationMinutes × 0.0175
   proofUrl         String?
   notes            String?
   loggedAt         DateTime
@@ -280,6 +283,7 @@ model WorkoutMaster {
   id                 Int               @id @default(autoincrement())
   workoutType        String            @unique
   genericWorkoutType String
+  met                Float?            // MET value; caloriesBurned = met × user.weight × durationMinutes × 0.0175
   genericWorkout     GenericWorkoutMet @relation(fields: [genericWorkoutType], references: [workoutType])
   workouts           Workout[]
 

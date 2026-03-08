@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   TextInput,
   ActivityIndicator,
   Animated,
+  Modal,
+  FlatList,
+  Pressable,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { HomeStackParamList } from '../navigation/types';
@@ -19,7 +22,7 @@ import { useTheme } from '../theme';
 import { useClub } from '../context/ClubContext';
 import { useDashboardStore } from '../store/dashboardStore';
 import { clubService } from '../services/clubService';
-import { workoutService, type WorkoutActivity, type LogWorkoutPayload } from '../services/workoutService';
+import { workoutService, type WorkoutMasterOption, type LogWorkoutPayload } from '../services/workoutService';
 import { getInputConfig, getPointsPreview, DEFAULT_ACTIVITY_TYPES } from '../config/workoutInputMap';
 import type { RecentWorkout } from '../types/dashboard';
 
@@ -37,12 +40,15 @@ export default function WorkoutNewScreen() {
   const repeatLastIntent = route.params?.repeatLast === true;
   const repeatWorkoutIndex = route.params?.repeatWorkoutIndex ?? 0;
 
-  const [activities, setActivities] = useState<WorkoutActivity[]>([]);
+  const [masterList, setMasterList] = useState<WorkoutMasterOption[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
   const [activitiesError, setActivitiesError] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<WorkoutMasterOption | null>(null);
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityModalVisible, setActivityModalVisible] = useState(false);
   const [duration, setDuration] = useState('');
   const [distance, setDistance] = useState('');
+  const [heartRate, setHeartRate] = useState('');
   const [optionalExpanded, setOptionalExpanded] = useState(false);
   const [note, setNote] = useState('');
   const [hasProof, setHasProof] = useState(false);
@@ -61,31 +67,39 @@ export default function WorkoutNewScreen() {
     setActivitiesLoading(true);
     setActivitiesError(null);
     try {
-      const res = await workoutService.listActivities();
+      const res = await workoutService.listWorkoutMaster();
       if (res.success && res.data && res.data.length > 0) {
-        setActivities(res.data);
+        setMasterList(res.data);
       } else {
-        // Fallback when API returns empty (e.g. generic_workout_met not seeded)
-        setActivities(
-          DEFAULT_ACTIVITY_TYPES.map((workoutType, i) => ({
-            id: i + 1,
-            workoutType,
-            metCap: null,
-            avgMetPerHour: null,
-            maxMetLimit: null,
-          }))
-        );
+        const fallback = await workoutService.listActivities();
+        if (fallback.success && fallback.data && fallback.data.length > 0) {
+          setMasterList(
+            fallback.data.map((a) => ({
+              id: a.id,
+              workoutType: a.workoutType,
+              genericWorkoutType: a.workoutType,
+              met: null,
+            }))
+          );
+        } else {
+          setMasterList(
+            DEFAULT_ACTIVITY_TYPES.map((workoutType, i) => ({
+              id: i + 1,
+              workoutType,
+              genericWorkoutType: workoutType,
+              met: null,
+            }))
+          );
+        }
       }
     } catch (err) {
       setActivitiesError(err instanceof Error ? err.message : 'Failed to load activities');
-      // Still show fallback so the page is usable offline or when API fails
-      setActivities(
+      setMasterList(
         DEFAULT_ACTIVITY_TYPES.map((workoutType, i) => ({
           id: i + 1,
           workoutType,
-          metCap: null,
-          avgMetPerHour: null,
-          maxMetLimit: null,
+          genericWorkoutType: workoutType,
+          met: null,
         }))
       );
     } finally {
@@ -131,33 +145,34 @@ export default function WorkoutNewScreen() {
     distanceKm: undefined,
   } : null);
 
-  const inputConfig = selectedType ? getInputConfig(selectedType) : null;
+  const filteredActivities = useMemo(() => {
+    const q = activitySearch.trim().toLowerCase();
+    if (!q) return masterList;
+    return masterList.filter(
+      (a) =>
+        a.workoutType.toLowerCase().includes(q) || a.genericWorkoutType.toLowerCase().includes(q)
+    );
+  }, [masterList, activitySearch]);
+
+  const inputConfig = selectedActivity ? getInputConfig(selectedActivity.genericWorkoutType) : null;
   const isDistance = inputConfig?.inputType === 'distance';
-  const numValue = inputConfig
-    ? isDistance
-      ? parseFloat(distance) || 0
-      : parseInt(duration, 10) || 0
-    : 0;
+  const durationNum = parseInt(duration, 10) || 0;
+  const distanceNum = parseFloat(distance) || 0;
+  const numValue = inputConfig ? (isDistance ? distanceNum : durationNum) : 0;
   const points = inputConfig ? getPointsPreview(inputConfig.inputType, numValue) : 0;
   const atOrOverCap = dailyCap != null && todayPoints >= dailyCap;
   const wouldHitCap = dailyCap != null && todayPoints + points > dailyCap && todayPoints < dailyCap;
   const pointsAfterSubmit = dailyCap != null ? Math.min(todayPoints + points, dailyCap) - todayPoints : points;
 
   const validate = useCallback((): string | null => {
-    if (!selectedType || !inputConfig) return 'Select an activity type';
-    if (isDistance) {
-      if (!distance.trim()) return `Enter distance (${inputConfig.unit})`;
-      const v = parseFloat(distance);
-      if (isNaN(v) || v <= 0) return `Enter a valid distance in ${inputConfig.unit}`;
-    } else {
-      if (!duration.trim()) return `Enter duration (${inputConfig.unit})`;
-      const v = parseInt(duration, 10);
-      if (isNaN(v) || v <= 0) return `Enter a valid duration in ${inputConfig.unit}`;
-    }
+    if (!selectedActivity) return 'Select an activity';
+    if (!duration.trim()) return 'Duration (minutes) is required';
+    const v = parseInt(duration, 10);
+    if (isNaN(v) || v <= 0) return 'Enter a valid duration (minutes) greater than 0';
     if (activeRoundId == null) return 'No active round. Join a round to log workouts.';
     if (atOrOverCap) return "You've reached your daily points cap.";
     return null;
-  }, [selectedType, inputConfig, isDistance, duration, distance, activeRoundId, atOrOverCap]);
+  }, [selectedActivity, duration, activeRoundId, atOrOverCap]);
 
   const runSuccessFlow = useCallback((awarded: number, activityName: string, showStreak: boolean) => {
     setSuccessPoints(awarded);
@@ -168,10 +183,10 @@ export default function WorkoutNewScreen() {
       optimisticallyAddWorkout(selectedClub.id, activeRoundId, { points: awarded, activityName });
     }
     setLastLoggedWorkout({
-      activityType: selectedType!,
+      activityType: selectedActivity!.workoutType,
       points: awarded,
-      durationMinutes: isDistance ? undefined : parseInt(duration, 10) || undefined,
-      distanceKm: isDistance ? parseFloat(distance) || undefined : undefined,
+      durationMinutes: parseInt(duration, 10) || undefined,
+      distanceKm: distance.trim() ? parseFloat(distance) || undefined : undefined,
     });
     Animated.parallel([
       Animated.timing(successOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
@@ -181,10 +196,10 @@ export default function WorkoutNewScreen() {
       Animated.timing(successOpacity, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
         setSuccessPoints(null);
         setStreakMessage(null);
-        (navigation as any).getParent()?.navigate('MainTabs', { screen: 'HomeTab' });
+        if (navigation.canGoBack()) navigation.goBack();
       });
     }, 1500);
-  }, [selectedType, duration, distance, isDistance, selectedClub, activeRoundId, successOpacity, successScale, optimisticallyAddWorkout, setLastLoggedWorkout, navigation]);
+  }, [selectedActivity, duration, distance, selectedClub, activeRoundId, successOpacity, successScale, optimisticallyAddWorkout, setLastLoggedWorkout, navigation]);
 
   const handleSubmit = async () => {
     const err = validate();
@@ -194,10 +209,12 @@ export default function WorkoutNewScreen() {
     }
     setSubmitError(null);
     setSubmitting(true);
+    const durationMinutes = parseInt(duration, 10) || 0;
     const payload: LogWorkoutPayload = {
-      activityType: selectedType!,
-      durationMinutes: isDistance ? undefined : parseInt(duration, 10) || undefined,
-      distanceKm: isDistance ? parseFloat(distance) || undefined : undefined,
+      workoutMasterId: selectedActivity!.id,
+      durationMinutes,
+      distanceKm: distance.trim() ? parseFloat(distance) || undefined : undefined,
+      heartRate: heartRate.trim() ? parseInt(heartRate, 10) || undefined : undefined,
       proofUrl: hasProof ? 'proof' : undefined,
       note: note.trim() || undefined,
       loggedAt: new Date().toISOString(),
@@ -206,7 +223,7 @@ export default function WorkoutNewScreen() {
     setSubmitting(false);
     if (result.success && result.data != null) {
       const awarded = result.data.points ?? pointsAfterSubmit;
-      runSuccessFlow(awarded, selectedType!, true);
+      runSuccessFlow(awarded, selectedActivity!.workoutType, true);
     } else {
       setSubmitError(result.error ?? 'Failed to log workout');
     }
@@ -215,15 +232,18 @@ export default function WorkoutNewScreen() {
   const handleRepeat = async () => {
     if (!lastWorkout || !activeRoundId) return;
     const activityType = lastWorkout.activityType;
+    const match = masterList.find((a) => a.workoutType === activityType);
+    if (!match) {
+      setSubmitError('This activity is no longer available. Select an activity from the list to log.');
+      return;
+    }
     const durationMinutes = lastWorkout.durationMinutes ?? 30;
-    const distanceKm = lastWorkout.distanceKm;
-    const isDist = getInputConfig(activityType).inputType === 'distance';
     setSubmitting(true);
     setSubmitError(null);
     const payload: LogWorkoutPayload = {
-      activityType,
-      durationMinutes: isDist ? undefined : durationMinutes,
-      distanceKm: isDist ? (distanceKm ?? 5) : undefined,
+      workoutMasterId: match.id,
+      durationMinutes,
+      distanceKm: lastWorkout.distanceKm ?? undefined,
       loggedAt: new Date().toISOString(),
     };
     const result = await workoutService.logWorkout(activeRoundId, payload);
@@ -231,7 +251,7 @@ export default function WorkoutNewScreen() {
     if (result.success && result.data != null) {
       const awarded = result.data.points ?? lastWorkout.points;
       if (selectedClub) optimisticallyAddWorkout(selectedClub.id, activeRoundId, { points: awarded, activityName: activityType });
-      setLastLoggedWorkout({ activityType, points: awarded, durationMinutes: isDist ? undefined : durationMinutes, distanceKm: isDist ? distanceKm : undefined });
+      setLastLoggedWorkout({ activityType, points: awarded, durationMinutes, distanceKm: lastWorkout.distanceKm });
       setSuccessPoints(awarded);
       setStreakMessage('Streak increased');
       successOpacity.setValue(0);
@@ -244,7 +264,7 @@ export default function WorkoutNewScreen() {
         Animated.timing(successOpacity, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
           setSuccessPoints(null);
           setStreakMessage(null);
-          (navigation as any).getParent()?.navigate('MainTabs', { screen: 'HomeTab' });
+          if (navigation.canGoBack()) navigation.goBack();
         });
       }, 1500);
     } else {
@@ -254,36 +274,22 @@ export default function WorkoutNewScreen() {
 
   const handleEditFromQuickLog = () => {
     if (!lastWorkout) return;
-    setSelectedType(lastWorkout.activityType);
-    const cfg = getInputConfig(lastWorkout.activityType);
-    if (cfg.inputType === 'distance') {
-      setDistance(String(lastWorkout.distanceKm ?? 5));
-      setDuration('');
-    } else {
-      setDuration(String(lastWorkout.durationMinutes ?? 30));
-      setDistance('');
-    }
+    const match = masterList.find((a) => a.workoutType === lastWorkout.activityType);
+    if (match) setSelectedActivity(match);
+    setDuration(String(lastWorkout.durationMinutes ?? 30));
+    setDistance(lastWorkout.distanceKm != null ? String(lastWorkout.distanceKm) : '');
+    setHeartRate('');
     setSubmitError(null);
     (navigation as any).setParams?.({ repeatLast: false });
   };
 
   const stepUp = () => {
-    if (isDistance) {
-      const v = parseFloat(distance) || 0;
-      setDistance(String(Math.round((v + STEP_DISTANCE) * 10) / 10));
-    } else {
-      const v = parseInt(duration, 10) || 0;
-      setDuration(String(v + STEP_DURATION));
-    }
+    const v = parseInt(duration, 10) || 0;
+    setDuration(String(v + STEP_DURATION));
   };
   const stepDown = () => {
-    if (isDistance) {
-      const v = parseFloat(distance) || 0;
-      if (v > STEP_DISTANCE) setDistance(String(Math.round((v - STEP_DISTANCE) * 10) / 10));
-    } else {
-      const v = parseInt(duration, 10) || 0;
-      if (v > STEP_DURATION) setDuration(String(v - STEP_DURATION));
-    }
+    const v = parseInt(duration, 10) || 0;
+    if (v > STEP_DURATION) setDuration(String(v - STEP_DURATION));
   };
 
   const goBack = () => {
@@ -293,17 +299,24 @@ export default function WorkoutNewScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
-        <View style={[styles.header, { paddingTop: insets.top + s.sm, paddingBottom: s.sm, paddingHorizontal: s.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+        <View style={[styles.header, { paddingTop: s.sm, paddingBottom: s.sm, paddingHorizontal: s.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card }]}>
           <TouchableOpacity onPress={goBack} hitSlop={12} activeOpacity={0.8}>
             <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={[typography.h3, { color: colors.textPrimary, fontWeight: '800' }]}>Log Workout</Text>
+          <Text style={[typography.label, { color: colors.textPrimary, fontSize: 18 }]}>Log Workout</Text>
           <View style={{ width: 24 }} />
         </View>
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { padding: s.sm, paddingBottom: 120 + insets.bottom }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              padding: s.sm,
+              paddingBottom: insets.bottom + s.lg,
+              flexGrow: 0,
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -385,7 +398,7 @@ export default function WorkoutNewScreen() {
             </View>
           )}
 
-          {/* 2. Activity type — pill cards */}
+          {/* 2. Activity type — autocomplete */}
           <Text style={[styles.sectionLabel, { color: colors.textPrimary, fontWeight: '800', marginBottom: s.xs }]}>Activity type</Text>
           {activitiesLoading ? (
             <View style={[styles.loadingWrap, { paddingVertical: s.lg }]}>
@@ -395,64 +408,88 @@ export default function WorkoutNewScreen() {
           ) : activitiesError ? (
             <Text style={[typography.caption, { color: colors.error, fontWeight: '600' }]}>{activitiesError}</Text>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.pillRow, { gap: s.xs, paddingVertical: s.xs }]}>
-              {activities.map((a) => {
-                const config = getInputConfig(a.workoutType);
-                const selected = selectedType === a.workoutType;
-                return (
-                  <TouchableOpacity
-                    key={a.id}
-                    onPress={() => { setSelectedType(a.workoutType); setSubmitError(null); }}
-                    activeOpacity={0.85}
-                    style={[
-                      styles.pill,
-                      {
-                        backgroundColor: selected ? colors.primary : colors.card,
-                        borderWidth: 2,
-                        borderColor: selected ? colors.primary : colors.border,
-                        borderRadius: r.sm,
-                        paddingVertical: s.sm,
-                        paddingHorizontal: s.md,
-                        ...(selected ? shadows.sm : {}),
-                      },
-                    ]}
-                  >
-                    <Ionicons name={config.icon} size={22} color={selected ? colors.heroText : colors.textSecondary} />
-                    <Text style={[typography.caption, { color: selected ? colors.textInverse : colors.textPrimary, fontWeight: '800', marginLeft: s.sm }]} numberOfLines={1}>{a.workoutType}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <TouchableOpacity
+              onPress={() => { setActivitySearch(''); setActivityModalVisible(true); setSubmitError(null); }}
+              activeOpacity={0.85}
+              style={[
+                styles.activityTrigger,
+                {
+                  backgroundColor: colors.card,
+                  borderWidth: 2,
+                  borderColor: selectedActivity ? colors.primary : colors.border,
+                  borderRadius: r.md,
+                  paddingVertical: s.sm,
+                  paddingHorizontal: s.md,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  ...(selectedActivity ? shadows.sm : {}),
+                },
+              ]}
+            >
+              {selectedActivity ? (
+                <>
+                  <Ionicons name={getInputConfig(selectedActivity.genericWorkoutType).icon} size={22} color={colors.primary} />
+                  <Text style={[typography.body, { color: colors.textPrimary, fontWeight: '600', marginLeft: s.sm }]} numberOfLines={1}>{selectedActivity.workoutType}</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="search" size={22} color={colors.textSecondary} />
+                  <Text style={[typography.body, { color: colors.textSecondary, marginLeft: s.sm }]}>Search activity…</Text>
+                </>
+              )}
+              <Ionicons name="chevron-down" size={18} color={colors.textSecondary} style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
           )}
 
-          {/* 3. Dynamic inputs + stepper */}
-          {inputConfig && selectedType && (
+          {/* 3. Duration (required), Distance & Heart rate (optional) */}
+          {selectedActivity && (
             <>
-              <Text style={[styles.sectionLabel, { color: colors.textPrimary, fontWeight: '800', marginTop: s.md, marginBottom: s.xs }]}>
-                {inputConfig.inputType === 'distance' ? 'Distance' : 'Duration'}
-              </Text>
+              <Text style={[styles.sectionLabel, { color: colors.textPrimary, fontWeight: '800', marginTop: s.md, marginBottom: s.xs }]}>Duration (required)</Text>
               <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: r.md, borderWidth: 1, ...shadows.card }]}>
                 <TouchableOpacity onPress={stepDown} style={[styles.stepperBtn, { borderRightWidth: 1, borderRightColor: colors.border }]} activeOpacity={0.8}>
                   <Ionicons name="remove" size={28} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <TextInput
-                  value={isDistance ? distance : duration}
-                  onChangeText={isDistance ? setDistance : setDuration}
-                  placeholder={isDistance ? '0.0' : '0'}
+                  value={duration}
+                  onChangeText={setDuration}
+                  placeholder="0"
                   placeholderTextColor={colors.textSecondary}
-                  keyboardType={isDistance ? 'decimal-pad' : 'number-pad'}
+                  keyboardType="number-pad"
                   style={[styles.bigInput, { color: colors.textPrimary }]}
                 />
                 <View style={[styles.unitBadge, { backgroundColor: colors.border }]}>
-                  <Text style={[typography.label, { color: colors.textPrimary, fontWeight: '800' }]}>{inputConfig.unit}</Text>
+                  <Text style={[typography.label, { color: colors.textPrimary, fontWeight: '800' }]}>min</Text>
                 </View>
                 <TouchableOpacity onPress={stepUp} style={[styles.stepperBtn, { borderLeftWidth: 1, borderLeftColor: colors.border }]} activeOpacity={0.8}>
                   <Ionicons name="add" size={28} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
-              {(isDistance ? parseFloat(distance) <= 0 : (parseInt(duration, 10) || 0) <= 0) && (isDistance ? distance.trim() : duration.trim()) && (
+              {(parseInt(duration, 10) || 0) <= 0 && duration.trim() && (
                 <Text style={[typography.caption, { color: colors.error, marginTop: s.xxs, fontWeight: '600' }]}>Enter a value greater than 0</Text>
               )}
+
+              <Text style={[styles.sectionLabel, { color: colors.textPrimary, fontWeight: '800', marginTop: s.sm, marginBottom: s.xs }]}>Distance (optional)</Text>
+              <TextInput
+                value={distance}
+                onChangeText={setDistance}
+                placeholder="e.g. 5.2"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="decimal-pad"
+                style={[styles.singleInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.textPrimary, borderRadius: r.md, padding: s.sm, borderWidth: 1 }]}
+              />
+              <Text style={[typography.caption, { color: colors.textSecondary, marginTop: s.xxs }]}>km</Text>
+
+              <Text style={[styles.sectionLabel, { color: colors.textPrimary, fontWeight: '800', marginTop: s.sm, marginBottom: s.xs }]}>Heart rate (optional)</Text>
+              <TextInput
+                value={heartRate}
+                onChangeText={setHeartRate}
+                placeholder="e.g. 120"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="number-pad"
+                style={[styles.singleInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.textPrimary, borderRadius: r.md, padding: s.sm, borderWidth: 1 }]}
+              />
+              <Text style={[typography.caption, { color: colors.textSecondary, marginTop: s.xxs }]}>bpm</Text>
+
               {dailyCap != null && (
                 <View style={[styles.capRow, { marginTop: s.sm }]}>
                   {atOrOverCap ? (
@@ -465,12 +502,10 @@ export default function WorkoutNewScreen() {
                 </View>
               )}
 
-              {/* 4. Live points preview */}
               <View style={[styles.pointsPreview, { marginTop: s.md, backgroundColor: colors.card, borderWidth: 2, borderColor: colors.energy, borderRadius: r.md, paddingVertical: s.md, ...shadows.card }]}>
                 <Text style={[typography.metric, { color: colors.energy }]}>+{dailyCap != null ? pointsAfterSubmit : points} pts</Text>
               </View>
 
-              {/* 5. Optional — collapsed */}
               <TouchableOpacity onPress={() => setOptionalExpanded(!optionalExpanded)} style={[styles.optionalToggle, { marginTop: s.md, borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: s.sm }]} activeOpacity={0.8}>
                 <Text style={[typography.caption, { color: colors.textSecondary, fontWeight: '700' }]}>Note & proof (optional)</Text>
                 <Ionicons name={optionalExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
@@ -487,20 +522,72 @@ export default function WorkoutNewScreen() {
             </>
           )}
 
-          {submitError && <Text style={[typography.caption, { color: colors.error, fontWeight: '600', marginTop: s.sm }]}>{submitError}</Text>}
-        </ScrollView>
+          {/* Activity picker modal */}
+          <Modal visible={activityModalVisible} animationType="slide" transparent>
+            <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setActivityModalVisible(false)}>
+              <Pressable style={[styles.modalContent, { backgroundColor: colors.surface, borderRadius: r.lg, maxHeight: '80%' }]} onPress={(e) => e.stopPropagation()}>
+                <View style={{ padding: s.md, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <Text style={[typography.label, { color: colors.textPrimary, marginBottom: s.sm }]}>Search activity</Text>
+                  <TextInput
+                    value={activitySearch}
+                    onChangeText={setActivitySearch}
+                    placeholder="Type to filter…"
+                    placeholderTextColor={colors.textSecondary}
+                    style={[styles.searchInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.textPrimary, borderRadius: r.sm, padding: s.sm, borderWidth: 1 }]}
+                    autoFocus
+                  />
+                </View>
+                <FlatList
+                  data={filteredActivities}
+                  keyExtractor={(item) => `${item.id}-${item.workoutType}`}
+                  keyboardShouldPersistTaps="handled"
+                  style={{ maxHeight: 320 }}
+                  renderItem={({ item }) => {
+                    const config = getInputConfig(item.genericWorkoutType);
+                    return (
+                      <TouchableOpacity
+                        onPress={() => { setSelectedActivity(item); setActivityModalVisible(false); }}
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: s.sm, paddingHorizontal: s.md, borderBottomWidth: 1, borderBottomColor: colors.border }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name={config.icon} size={20} color={colors.textSecondary} />
+                        <Text style={[typography.body, { color: colors.textPrimary, marginLeft: s.sm }]}>{item.workoutType}</Text>
+                        {item.genericWorkoutType !== item.workoutType && (
+                          <Text style={[typography.caption, { color: colors.textSecondary, marginLeft: s.xs }]}>({item.genericWorkoutType})</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+                <TouchableOpacity onPress={() => setActivityModalVisible(false)} style={{ padding: s.md, alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <Text style={[typography.label, { color: colors.primary }]}>Cancel</Text>
+                </TouchableOpacity>
+              </Pressable>
+            </Pressable>
+          </Modal>
 
-        {/* 6. Sticky CTA */}
-        <View style={[styles.footer, { paddingTop: s.sm, paddingBottom: insets.bottom + s.sm, paddingHorizontal: s.md, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border }]}>
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={submitting || !selectedType || (isDistance ? !distance.trim() : !duration.trim()) || atOrOverCap || !activeRoundId}
-            activeOpacity={0.9}
-            style={[styles.cta, { backgroundColor: (submitting || !selectedType || atOrOverCap || !activeRoundId) ? colors.border : colors.primary, borderRadius: r.sm, paddingVertical: s.md }]}
-          >
-            {submitting ? <ActivityIndicator size="small" color={colors.heroText} /> : <Text style={[typography.label, { color: colors.heroText, fontWeight: '800' }]}>Log Workout</Text>}
-          </TouchableOpacity>
-        </View>
+          {submitError && <Text style={[typography.caption, { color: colors.error, fontWeight: '600', marginTop: s.sm }]}>{submitError}</Text>}
+
+          {/* Log Workout CTA — directly under form, no stretch/gap */}
+          {selectedActivity && (
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={submitting || !duration.trim() || (parseInt(duration, 10) || 0) <= 0 || atOrOverCap || !activeRoundId}
+              activeOpacity={0.9}
+              style={[
+                styles.cta,
+                {
+                  marginTop: s.md,
+                  backgroundColor: (submitting || !duration.trim() || (parseInt(duration, 10) || 0) <= 0 || atOrOverCap || !activeRoundId) ? colors.border : colors.primary,
+                  borderRadius: r.sm,
+                  paddingVertical: s.md,
+                },
+              ]}
+            >
+              {submitting ? <ActivityIndicator size="small" color={colors.heroText} /> : <Text style={[typography.label, { color: colors.heroText, fontWeight: '800' }]}>Log Workout</Text>}
+            </TouchableOpacity>
+          )}
+        </ScrollView>
       </KeyboardAvoidingView>
 
       {/* 7. Success overlay */}
@@ -528,8 +615,11 @@ const styles = StyleSheet.create({
   oneTapRepeatBanner: {},
   quickLogBtn: {},
   loadingWrap: { flexDirection: 'row', alignItems: 'center' },
-  pillRow: { paddingHorizontal: 2 },
-  pill: { flexDirection: 'row', alignItems: 'center' },
+  activityTrigger: {},
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContent: { width: '100%' },
+  searchInput: { fontSize: 16 },
+  singleInput: { fontSize: 16 },
   inputRow: { flexDirection: 'row', alignItems: 'stretch' },
   stepperBtn: { paddingHorizontal: 12, justifyContent: 'center', minWidth: 48 },
   bigInput: { flex: 1, fontSize: 28, fontWeight: '800', paddingVertical: 16, paddingHorizontal: 8, textAlign: 'center' },

@@ -302,7 +302,7 @@ export default function ProfileScreen() {
           <>
             <SectionHeader title="Admin tools" style={{ marginBottom: spacing.xs }} />
             <View style={{ gap: spacing.xs, marginBottom: spacing.md }}>
-              <Row label="Create challenge" onPress={() => (navigation as any).getParent()?.navigate('Rounds')} />
+              <Row label="Create challenge round" onPress={() => (navigation as any).getParent()?.navigate('Rounds')} />
               <Row label="Manage members" onPress={() => (navigation as any).getParent()?.navigate('Members')} />
               <Row label="Manage teams" onPress={() => (navigation as any).getParent()?.navigate('TeamsManagement')} />
               <Row label="Edit club info" onPress={() => (navigation as any).getParent()?.navigate('ClubInfo')} />

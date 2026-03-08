@@ -38,8 +38,9 @@ export function RoundCountdown({ daysLeft, endDate, variant = 'default' }: Round
   const isEnded = daysLeft < 0;
   const isUrgent = daysLeft >= 0 && daysLeft <= 1;
   const isHero = variant === 'hero';
-  const textColor = isHero ? (isEnded ? colors.heroTextMuted : colors.textInverse) : (isEnded ? colors.textMuted : isUrgent ? colors.danger : colors.primary);
-  const iconColor = isHero ? colors.heroTextMuted : (isEnded ? colors.textMuted : isUrgent ? colors.danger : colors.primary);
+  const textColor = isHero ? (isEnded ? colors.heroTextMuted : colors.heroText) : (isEnded ? colors.textMuted : isUrgent ? colors.danger : colors.primary);
+  const iconColor = isHero ? (isEnded ? colors.heroTextMuted : colors.heroText) : (isEnded ? colors.textMuted : isUrgent ? colors.danger : colors.primary);
+  const heroSubtextColor = isHero && !isEnded ? colors.heroText : colors.textSecondary;
 
   if (variant === 'hero') {
     return (
@@ -48,8 +49,8 @@ export function RoundCountdown({ daysLeft, endDate, variant = 'default' }: Round
           <Ionicons name={isEnded ? 'checkmark-circle' : 'time'} size={16} color={iconColor} />
           <Text style={[typography.bodySmall, { fontWeight: '700', color: textColor }]}>{text}</Text>
         </View>
-        {endDateStr && !isEnded && (
-          <Text style={[typography.caption, { color: colors.heroTextMuted, marginTop: 2, fontWeight: '500', opacity: 0.9 }]}>
+        {endDateStr && !isEnded && daysLeft !== 0 && (
+          <Text style={[typography.caption, { color: heroSubtextColor, marginTop: 2, fontWeight: '600' }]}>
             Ends {endDateStr}
           </Text>
         )}

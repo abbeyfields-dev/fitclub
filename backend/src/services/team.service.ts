@@ -159,7 +159,11 @@ export class TeamService {
     await ClubService.ensureMember(userId, round.clubId);
     const team = await prisma.team.findFirst({
       where: { id: teamId, roundId },
-      include: { Memberships: { include: { User: { select: { id: true, displayName: true } } } } },
+      include: {
+        Memberships: {
+          select: { id: true, userId: true, isLeader: true, User: { select: { id: true, displayName: true } } },
+        },
+      },
     });
     if (!team) throw new NotFoundError('Team not found.');
     const userIds = team.Memberships.map((m) => m.userId);
@@ -179,6 +183,7 @@ export class TeamService {
       points: Math.round(pointsByUser.get(m.userId) ?? 0),
       isCurrentUser: m.userId === userId,
       contributionPercent: total > 0 ? ((pointsByUser.get(m.userId) ?? 0) / total) * 100 : 0,
+      isTeamLead: m.isLeader,
     }));
     const allTeams = await prisma.team.findMany({ where: { roundId }, include: { Memberships: true } });
     const teamTotals = await Promise.all(

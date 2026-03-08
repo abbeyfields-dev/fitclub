@@ -1,33 +1,100 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors';
 import { ClubService } from './club.service';
 import { notifyChallengeLive, createRoundStartedNotifications } from './notification.service';
 
 export type RoundCreateInput = {
-  name: string;
-  startDate: Date;
-  endDate: Date;
-  scoringConfig: object;
+  name?: string;
+  startDate?: Date;
+  endDate?: Date;
+  scoringConfig?: object;
   teamSize?: number;
+  /** When set, use this round's data as defaults and optionally copy its teams. */
+  sourceRoundId?: string;
+  /** When true and sourceRoundId is set, create teams in the new round with same names and copy memberships (only users still in the club). */
+  copyTeams?: boolean;
 };
 
 export class RoundService {
-  /** Admin only. Creates a round in draft status. */
+  /** Admin only. Creates a round in draft status. Optionally from a source round with copyTeams. */
   static async createRound(clubId: string, userId: string, data: RoundCreateInput) {
     await ClubService.ensureMember(userId, clubId, 'admin');
+
+    let name = (data.name || '').trim();
+    let startDate: Date;
+    let endDate: Date;
+    let scoringConfig: object;
+    let teamSize: number | null = data.teamSize ?? null;
+
+    let sourceRound: { id: string; clubId: string; status: string; name: string; startDate: Date; endDate: Date; scoringConfig: Prisma.JsonValue; teamSize: number | null } | null = null;
+    if (data.sourceRoundId) {
+      sourceRound = await prisma.round.findUnique({
+        where: { id: data.sourceRoundId },
+        select: { id: true, clubId: true, status: true, name: true, startDate: true, endDate: true, scoringConfig: true, teamSize: true },
+      });
+      if (!sourceRound) throw new NotFoundError('Source round not found.');
+      if (sourceRound.clubId !== clubId) throw new ValidationError('Source round must belong to the same club.');
+      if (sourceRound.status !== 'draft' && sourceRound.status !== 'completed') {
+        throw new ValidationError('Source round must be draft or completed.');
+      }
+      name = name || sourceRound.name;
+      startDate = data.startDate ? new Date(data.startDate) : sourceRound.startDate;
+      endDate = data.endDate ? new Date(data.endDate) : sourceRound.endDate;
+      scoringConfig = data.scoringConfig && typeof data.scoringConfig === 'object' && Object.keys(data.scoringConfig).length > 0
+        ? (data.scoringConfig as object)
+        : (sourceRound.scoringConfig as object);
+      if (teamSize == null) teamSize = sourceRound.teamSize;
+    } else {
+      if (!data.name?.trim()) throw new ValidationError('Round name is required.');
+      if (!data.startDate || !data.endDate) throw new ValidationError('Valid startDate and endDate are required.');
+      startDate = new Date(data.startDate);
+      endDate = new Date(data.endDate);
+      if (!data.scoringConfig || typeof data.scoringConfig !== 'object') throw new ValidationError('scoringConfig object is required.');
+      scoringConfig = data.scoringConfig as object;
+    }
+    if (endDate <= startDate) throw new ValidationError('endDate must be after startDate.');
 
     const round = await prisma.round.create({
       data: {
         clubId,
-        name: data.name.trim(),
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        scoringConfig: data.scoringConfig as object,
-        teamSize: data.teamSize ?? null,
+        name,
+        startDate,
+        endDate,
+        scoringConfig,
+        teamSize,
         status: 'draft',
       },
       include: { Club: { select: { id: true, name: true } } },
     });
+
+    if (data.copyTeams && sourceRound) {
+      const sourceTeams = await prisma.team.findMany({
+        where: { roundId: sourceRound.id },
+        include: { Memberships: { select: { userId: true, isLeader: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+      const clubMemberIds = new Set(
+        (await prisma.clubMembership.findMany({ where: { clubId }, select: { userId: true } })).map((m) => m.userId)
+      );
+      for (const t of sourceTeams) {
+        const newTeam = await prisma.team.create({
+          data: { roundId: round.id, name: t.name.trim(), createdBy: null },
+        });
+        for (const mem of t.Memberships) {
+          if (!clubMemberIds.has(mem.userId)) continue;
+          await prisma.teamMembership.create({
+            data: {
+              userId: mem.userId,
+              teamId: newTeam.id,
+              roundId: round.id,
+              isLeader: mem.isLeader,
+            },
+          });
+        }
+      }
+    }
+
     return round;
   }
 

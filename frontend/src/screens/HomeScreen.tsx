@@ -107,7 +107,7 @@ function getWelcomeBanner(displayName: string | undefined, data: DashboardData):
     return {
       greeting: `Welcome back, ${name}`,
       contextHeadline: 'Round completed',
-      contextSubtext: 'See how your team finished. Get ready for the next challenge.',
+      contextSubtext: 'See how your team finished. Get ready for the next challenge round.',
       ctaLabel: 'View standings',
     };
   }
@@ -148,7 +148,8 @@ export default function HomeScreen() {
   const theme = useTheme();
   const { colors, spacing: s, radius: r, typography, shadows, isDark } = theme;
   const user = useAuthStore((s) => s.user);
-  const { clubs, selectedClub, isLoading: clubsLoading } = useClub();
+  const { clubs, selectedClub, isLoading: clubsLoading, clubsError, refreshClubs } = useClub();
+  const userEmail = useAuthStore((s) => s.user?.email ?? null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -366,6 +367,25 @@ export default function HomeScreen() {
           </Text>
         </LinearGradient>
 
+        {/* Show error when clubs failed to load (e.g. wrong user session or network) */}
+        {clubsError ? (
+          <View style={{ marginBottom: s.xl, padding: s.md, backgroundColor: isDark ? colors.surfaceElevated : colors.errorMuted, borderRadius: r.md, borderWidth: 1, borderColor: colors.error }}>
+            <Text style={[typography.bodySmall, { color: colors.text, marginBottom: s.xs }]}>{clubsError}</Text>
+            <Text style={[typography.bodySmall, { color: colors.textSecondary, marginBottom: s.sm }]}>
+              {userEmail
+                ? `You're signed in as ${userEmail}. Try retrying or log out and sign in again if this is wrong.`
+                : 'Try retrying or log out and sign in again.'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => refreshClubs()}
+              style={{ alignSelf: 'flex-start', paddingVertical: s.xs, paddingHorizontal: s.sm }}
+              activeOpacity={0.8}
+            >
+              <Text style={[typography.label, { color: colors.primary, fontWeight: '600' }]}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         {/* How FitClub Works */}
         <Text style={[typography.caption, { color: colors.textSecondary, fontWeight: '700', marginBottom: s.sm }]}>How FitClub works</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: s.sm, marginBottom: s.xl }}>
@@ -374,7 +394,7 @@ export default function HomeScreen() {
               <Ionicons name="people" size={26} color={colors.primary} />
             </View>
             <Text style={[typography.label, { color: colors.text, marginBottom: s.xxs }]}>Join a Club</Text>
-            <Text style={[typography.bodySmall, { color: colors.textSecondary, lineHeight: 18 }]}>Fitness challenges happen inside clubs with friends.</Text>
+            <Text style={[typography.bodySmall, { color: colors.textSecondary, lineHeight: 18 }]}>Fitness challenge rounds happen inside clubs with friends.</Text>
           </View>
           <View style={[styles.emptyConceptCard, { flex: 1, minWidth: 100, backgroundColor: isDark ? colors.surfaceElevated : colors.onboardingCardCompete, borderRadius: r.md, padding: s.md, ...shadows.card }]}>
             <View style={[styles.emptyConceptIconWrap, { width: 44, height: 44, borderRadius: r.md, backgroundColor: isDark ? colors.surface : colors.goldMuted, alignItems: 'center', justifyContent: 'center', marginBottom: s.xs }]}>

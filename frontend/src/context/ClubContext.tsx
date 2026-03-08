@@ -10,6 +10,8 @@ type ClubContextValue = {
   selectedClub: ClubWithRole | null;
   setSelectedClub: (club: ClubWithRole | null) => void;
   refreshClubs: () => Promise<void>;
+  /** Set when GET /clubs fails (e.g. network or 401). Cleared on successful load or retry. */
+  clubsError: string | null;
   /** Role from ClubMembership; never from User. */
   role: 'admin' | 'team_lead' | 'member' | null;
   isAdmin: boolean;
@@ -26,15 +28,18 @@ export function ClubProvider({ children }: { children: React.ReactNode }) {
   const [clubs, setClubs] = useState<ClubWithRole[]>([]);
   const [selectedClub, setSelectedClubState] = useState<ClubWithRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [clubsError, setClubsError] = useState<string | null>(null);
 
   const refreshClubs = useCallback(async () => {
     if (!isAuthenticated) {
       setClubs([]);
       setSelectedClubState(null);
+      setClubsError(null);
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
+    setClubsError(null);
     try {
       const res = await clubService.listMine();
       const list = res.data || [];
@@ -50,9 +55,11 @@ export function ClubProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem(SELECTED_CLUB_ID_KEY, nextSelected.id).catch(() => {});
       }
       setSelectedClubState(nextSelected);
-    } catch {
+    } catch (e) {
       setClubs([]);
       setSelectedClubState(null);
+      const message = e instanceof Error ? e.message : 'Could not load clubs';
+      setClubsError(message);
     } finally {
       setIsLoading(false);
     }
@@ -76,6 +83,7 @@ export function ClubProvider({ children }: { children: React.ReactNode }) {
     selectedClub,
     setSelectedClub,
     refreshClubs,
+    clubsError,
     role: selectedClub?.role ?? null,
     isAdmin: selectedClub?.role === 'admin',
     isTeamLead: selectedClub?.role === 'team_lead',
